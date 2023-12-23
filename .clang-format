@@ -1,0 +1,16 @@
+BasedOnStyle: Chromium
+AccessModifierOffset: '-2'
+AlignAfterOpenBracket: AlwaysBreak
+AlignConsecutiveAssignments: 'false'
+AlignEscapedNewlines: Right
+AlignOperands: 'false'
+AlignTrailingComments: 'false'
+AllowShortFunctionsOnASingleLine: Inline
+BreakBeforeBraces: Attach
+BreakStringLiterals: 'true'
+ColumnLimit: '80'
+IncludeBlocks: Preserve
+IndentWidth: '2'
+PointerAlignment: Right
+SortIncludes: 'true'
+SortUsingDeclarations: 'true'
