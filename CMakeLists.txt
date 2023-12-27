@@ -10,3 +10,4 @@ find_package(gRPC REQUIRED)
 
 add_subdirectory(src/proto)
 add_subdirectory(src/universe)
+add_subdirectory(src/frontend)

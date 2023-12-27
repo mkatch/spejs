@@ -1,0 +1,6 @@
+go 1.21.5
+
+use (
+	./src/frontend
+	./build/src/proto/go
+)

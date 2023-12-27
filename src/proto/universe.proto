@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package = "github.com/mkacz91/spejs/pb";
+
 service UniverseService {
   rpc Ping (PingRequest) returns (PingResponse) {}
 }
