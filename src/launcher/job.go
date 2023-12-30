@@ -35,6 +35,11 @@ const (
 	Abandoned
 )
 
+const (
+	greenOK = "\033[32mOK\033[0m"
+	redFAIL = "\033[31mFAIL\033[0m"
+)
+
 func NewJob(path string, port int, arg ...string) *Job {
 	arg = append([]string{fmt.Sprintf("--port=%d", port)}, arg...)
 	job := Job{
@@ -76,11 +81,11 @@ func (job *Job) Start(timeout time.Duration) error {
 	fmt.Print("Starting ... ")
 	err = job.cmd.Start()
 	if err != nil {
-		fmt.Println("FAIL")
+		fmt.Println(redFAIL)
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println("OK")
+	fmt.Println(greenOK)
 	fmt.Println("Output file:", tmpout.Name())
 
 	job.cmdEnded = make(chan bool)
@@ -96,11 +101,11 @@ func (job *Job) Start(timeout time.Duration) error {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		fmt.Println("FAIL")
+		fmt.Println(redFAIL)
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println("OK")
+	fmt.Println(greenOK)
 
 	job.service = pb.NewJobServiceClient(job.conn)
 
@@ -117,7 +122,7 @@ func (job *Job) Start(timeout time.Duration) error {
 		}
 		if err != nil {
 			if statusCtx.Err() != nil {
-				fmt.Println(" FAIL")
+				fmt.Println("", redFAIL)
 				// The context has timed out and the current error tells simply that.
 				// The previous one, if present, is more helpful.
 				if lastStatusErr != nil {
@@ -129,7 +134,7 @@ func (job *Job) Start(timeout time.Duration) error {
 				lastStatusErr = err
 			}
 		} else {
-			fmt.Println(" OK")
+			fmt.Println("", greenOK)
 			break
 		}
 	}
@@ -152,17 +157,17 @@ func (job *Job) Stop(timeout time.Duration) error {
 		defer cancel()
 		_, err := job.service.Quit(ctx, &empty.Empty{})
 		if err != nil {
-			fmt.Println("FAIL")
+			fmt.Println(redFAIL)
 			fmt.Println(err)
 		} else {
-			fmt.Println("OK")
+			fmt.Println(greenOK)
 			fmt.Print("Waiting for the process to terminate ... ")
 			select {
 			case <-job.cmdEnded:
-				fmt.Println("OK")
+				fmt.Println(greenOK)
 				success = true
 			case <-time.After(timeout):
-				fmt.Println("FAIL")
+				fmt.Println(redFAIL)
 				fmt.Println("Still running after", timeout)
 			}
 		}
@@ -173,10 +178,10 @@ func (job *Job) Stop(timeout time.Duration) error {
 		job.cmd.Process.Signal(os.Kill)
 		select {
 		case <-job.cmdEnded:
-			fmt.Println("OK")
+			fmt.Println(greenOK)
 			success = true
 		case <-time.After(timeout):
-			fmt.Println("FAIL")
+			fmt.Println(redFAIL)
 			fmt.Println("Still running after", timeout, ". PID=", job.cmd.Process.Pid)
 		}
 	}
