@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"time"
 
 	"github.com/mkacz91/spejs/pb"
@@ -13,12 +14,36 @@ import (
 )
 
 var (
-	universePort = flag.Int(
-		"universe_port", 8001, "The port of the universe server")
+	port         = flag.Int("port", 8000, "The port of the frontend server")
+	universePort = flag.Int("universe_port", 8001, "The port of the universe server")
 )
 
 func main() {
 	flag.Parse()
+	lis, err := net.Listen("tcp4", fmt.Sprintf(":%d", *port))
+	if err != nil {
+		log.Fatal("Failed to listen: ", err)
+	}
+
+	server := grpc.NewServer()
+	jobService := NewJobService()
+	pb.RegisterJobServiceServer(server, jobService)
+	log.Println("Starting frontend server on address", lis.Addr())
+
+	go func() {
+		jobService.WaitForQuit()
+		server.Stop()
+	}()
+
+	go pingUniverse()
+
+	err = server.Serve(lis)
+	if err != nil {
+		log.Fatal("Failed to serve: ", err)
+	}
+}
+
+func pingUniverse() {
 	conn, err := grpc.Dial(
 		fmt.Sprintf("localhost:%d", *universePort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

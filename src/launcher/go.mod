@@ -1,4 +1,4 @@
-module github.com/mkacz91/spejs/frontend
+module github.com/mkacz91/spejs/launcher
 
 go 1.21.5
 

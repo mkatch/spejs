@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/mkacz91/spejs/pb";
+
+// Meta-service that allows interacting with a job running a gRPC server.
+service JobService {
+  // Returns the status of the job.
+  rpc Status (google.protobuf.Empty) returns (JobStatusResponse) {}
+
+  // Requests the job to gracefully release all resources and quit.
+  //
+  // Response only indicates acknowledgment, and the job will likely exit some
+  // time after.
+  rpc Quit (google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
+message JobStatusResponse {
+  // Whether the job is ready to accept requests.
+  bool is_ready = 1;
+}
