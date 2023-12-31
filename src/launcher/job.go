@@ -40,8 +40,8 @@ const (
 	redFAIL = "\033[31mFAIL\033[0m"
 )
 
-func NewJob(path string, port int, arg ...string) *Job {
-	arg = append([]string{fmt.Sprintf("--port=%d", port)}, arg...)
+func NewJob(path string, portKey string, port int, arg ...string) *Job {
+	arg = append(arg, fmt.Sprintf("%s=%d", portKey, port))
 	job := Job{
 		name: filepath.Base(path),
 		cmd:  exec.Command(path, arg...),

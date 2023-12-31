@@ -1,0 +1,28 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build launcher (CMake)",
+			"type": "cmake",
+			"command": "build",
+			"targets": [
+				"launcher"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"detail": "CMake template build task"
+		},
+		{
+			"label": "Run launcher",
+			"type": "shell",
+			"command": "./build/src/launcher/launcher",
+			"dependsOn": [
+				"Build launcher (CMake)"
+			],
+			"problemMatcher": []
+		}
+	]
+}

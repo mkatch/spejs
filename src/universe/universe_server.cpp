@@ -14,7 +14,7 @@
 
 using std::cout, std::endl, std::string, std::unique_ptr;
 
-ABSL_FLAG(string, port, "8001", "Listening port");
+ABSL_FLAG(string, port, "8100", "Listening port");
 
 class UniverseServiceImpl final : public UniverseService::Service {
   grpc::Status Ping(

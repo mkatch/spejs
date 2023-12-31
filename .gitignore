@@ -1,3 +1,5 @@
+.vscode/*
+!.vscode/tasks.json
 build/
-.vscode/
+node_modules/
 *.cmake
