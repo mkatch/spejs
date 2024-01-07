@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mkacz91/spejs/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -30,6 +29,7 @@ const (
 	NotStarted JobState = iota
 	Starting
 	Running
+	Ready
 	Stopping
 	Stopped
 	Abandoned
@@ -116,7 +116,7 @@ func (job *Job) Start(timeout time.Duration) error {
 	for {
 		time.Sleep(1 * time.Second)
 		fmt.Print(".")
-		response, err := job.service.Status(statusCtx, &empty.Empty{})
+		response, err := job.service.Status(statusCtx, &pb.Empty{})
 		if err == nil && !response.IsReady {
 			err = fmt.Errorf("Job responded, saying it's not ready")
 		}
@@ -144,18 +144,22 @@ func (job *Job) Start(timeout time.Duration) error {
 }
 
 func (job *Job) Stop(timeout time.Duration) error {
-	if job.state != Starting && job.state != Running {
-		return fmt.Errorf("Job not running")
+	if job.state != Starting && job.state != Running && job.state != Ready {
+		return fmt.Errorf("job not started")
+	}
+	if job.state == Starting {
+		job.state = Stopped
+		return nil
 	}
 	job.state = Stopping
 
 	success := false
 
 	if job.service != nil {
-		fmt.Print("Gracefully quitting ", job.name, "using its JobService.Quit RPC ... ")
+		fmt.Print("Gracefully quitting ", job.name, " using its JobService.Quit RPC ... ")
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		_, err := job.service.Quit(ctx, &empty.Empty{})
+		_, err := job.service.Quit(ctx, &pb.Empty{})
 		if err != nil {
 			fmt.Println(redFAIL)
 			fmt.Println(err)

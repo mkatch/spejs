@@ -8,7 +8,7 @@
 #include <string>
 #include <thread>
 
-#include "universe.grpc.pb.h"
+#include "proto/universe.grpc.pb.h"
 
 #include "job.h"
 

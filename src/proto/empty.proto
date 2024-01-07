@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "github.com/mkacz91/spejs/pb";
+
+// Empty message.
+message Empty {}
+
+// TODO: Current build script cannot handle .proto files without a service. Fix.
+service EmptyService {}

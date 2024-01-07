@@ -3,7 +3,7 @@
 #include <grpcpp/grpcpp.h>
 #include <future>
 
-#include "job.grpc.pb.h"
+#include "proto/job.grpc.pb.h"
 
 class JobServiceImpl final : public JobService::Service {
 public:
@@ -11,13 +11,13 @@ public:
 
   grpc::Status Status(
       grpc::ServerContext *context,
-      google::protobuf::Empty const *request,
+      Empty const *request,
       JobStatusResponse *response) override;
 
   grpc::Status Quit(
       grpc::ServerContext *context,
-      google::protobuf::Empty const *request,
-      google::protobuf::Empty *response) override;
+      Empty const *request,
+      Empty *response) override;
 
 private:
   std::promise<void> _quit_requested;

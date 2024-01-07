@@ -6,7 +6,7 @@ void JobServiceImpl::wait_for_quit() {
 
 grpc::Status JobServiceImpl::Status(
     grpc::ServerContext *context,
-    google::protobuf::Empty const *request,
+    Empty const *request,
     JobStatusResponse *response) {
   response->set_is_ready(true);
   return grpc::Status::OK;
@@ -14,8 +14,8 @@ grpc::Status JobServiceImpl::Status(
 
 grpc::Status JobServiceImpl::Quit(
     grpc::ServerContext *context,
-    google::protobuf::Empty const *request,
-    google::protobuf::Empty *response) {
+    Empty const *request,
+    Empty *response) {
   _quit_requested.set_value();
   return grpc::Status::OK;
 }

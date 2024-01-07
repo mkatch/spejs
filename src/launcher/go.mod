@@ -2,8 +2,6 @@ module github.com/mkacz91/spejs/launcher
 
 go 1.21.5
 
-replace github.com/mkacz91/spejs/pb => ../../build/src/proto/go
-
 require (
 	github.com/golang/protobuf v1.5.3
 	github.com/mkacz91/spejs/pb v0.0.0

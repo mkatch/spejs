@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -17,12 +16,15 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// TODO: I don't like passing index.html and index.js as flags. Hardcoding also
+// doesn't seem like a good idea. Maybe we should have some kind of install
+// build step that copies files to one directory?
 var (
-	webPort       = flag.Int("web-port", 8000, "The port to server web content")
-	clientDistDir = flag.String("client-dist-dir", "missing", "The client dist/ directory")
-	clientSrcDir  = flag.String("client-src-dir", "missing", "The client source directory")
-	grpcPort      = flag.Int("grpc-port", 8001, "The port to serve gRPC requests")
-	universePort  = flag.Int("universe-port", 8100, "The port of the universe server")
+	webPort      = flag.Int("web-port", 8000, "The port to server web content")
+	indexTmpl    = flag.String("index-tmpl", "missing", "Path to the app .html file")
+	indexJs      = flag.String("index-js", "missing", "Path to the app .js bundle")
+	grpcPort     = flag.Int("grpc-port", 8001, "The port to serve gRPC requests")
+	universePort = flag.Int("universe-port", 8100, "The port of the universe server")
 )
 
 func main() {
@@ -54,12 +56,11 @@ func main() {
 	}()
 
 	router := gin.Default()
-	router.Static("/dist/", *clientDistDir)
-	router.Static("/src/", *clientSrcDir)
-	router.LoadHTMLFiles(filepath.Join(*clientSrcDir, "index.tmpl"))
+	router.LoadHTMLFiles(*indexTmpl)
 	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.tmpl", gin.H{})
 	})
+	router.StaticFile("/index.js", *indexJs)
 	webServer := &http.Server{Handler: router}
 
 	log.Println("Starting web server on ", webLis.Addr())

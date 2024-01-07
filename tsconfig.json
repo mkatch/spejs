@@ -1,10 +1,15 @@
 {
   "compilerOptions": {
     "target": "es2016",
-    "module": "commonjs",
-    "sourceMap": true,
+    "module": "es6",
+    "paths": {
+      "proto/*": [
+        "./build/proto/*"
+      ]
+    },
+    // "sourceMap": true,
+    // "sourceRoot": "./", // Non-empty sourceRoot prevents tsc from outputting source paths relative to the map file.
     "removeComments": true,
-    "sourceRoot": "../src",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,

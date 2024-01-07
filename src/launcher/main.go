@@ -23,19 +23,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("==== Starting jobs")
+	fmt.Println("===== Starting jobs")
 
 	jobs := []*Job{
 		NewJob(
-			"build/src/universe/Release/universe_server",
+			"build/Release/universe_server",
 			"--port", *universePort,
 		),
 		NewJob(
-			"build/src/frontend/frontend_server",
+			"build/frontend/frontend_server",
 			"--grpc-port", *frontendGrpcPort,
 			fmt.Sprintf("--web-port=%d", *frontendWebPort),
-			"--client-src-dir=src/client",
-			"--client-dist-dir=build/src/client/dist",
+			"--index-tmpl=src/client/index.tmpl",
+			"--index-js=build/client/client.js",
 		),
 	}
 

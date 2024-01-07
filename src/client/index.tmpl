@@ -2,7 +2,27 @@
 <html translate="no">
   <head>
     <meta charset="utf-8">
-    <script type="text/javascript" src="/dist/index.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "grpc-web": "https://cdn.jsdelivr.net/npm/grpc-web@1.5.0/+esm",
+          "google-protobuf": "https://cdn.jsdelivr.net/npm/google-protobuf@3.21.2/+esm"
+        }
+      }
+    </script>
+    <script type="module">
+      import * as googleProtobuf from 'google-protobuf';
+
+      window.require = function (name) {
+        if (name === 'google-protobuf') {
+          return googleProtobuf.default;
+        } else {
+          throw new Error('Eat dick!');
+        }
+      }
+    </script>
+    
+    <script type="module" src="/index.js"></script>
   </head>
   <body>
   </body>
