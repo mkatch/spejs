@@ -1,7 +1,5 @@
 go 1.21.5
 
-replace github.com/mkacz91/spejs/pb v0.0.0 => ./build/proto/go
-
 use (
 	./build/proto/go
 	./src/frontend

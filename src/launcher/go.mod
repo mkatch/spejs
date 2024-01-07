@@ -2,13 +2,15 @@ module github.com/mkacz91/spejs/launcher
 
 go 1.21.5
 
+replace github.com/mkacz91/spejs/pb => ../../build/proto/go
+
 require (
-	github.com/golang/protobuf v1.5.3
 	github.com/mkacz91/spejs/pb v0.0.0
 	google.golang.org/grpc v1.60.1
 )
 
 require (
+	github.com/golang/protobuf v1.5.3 // indirect
 	golang.org/x/net v0.16.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect

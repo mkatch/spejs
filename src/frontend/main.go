@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/mkacz91/spejs/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -44,6 +45,14 @@ func main() {
 	grpcServer := grpc.NewServer()
 	jobService := NewJobService()
 	pb.RegisterJobServiceServer(grpcServer, jobService)
+	grpcwebServer := grpcweb.WrapServer(
+		grpcServer,
+		grpcweb.WithAllowNonRootResource(true),
+	)
+
+	// wgrpcServer := grpc.NewServer()
+	// wjobService := NewJobService()
+	// pb.RegisterJobServiceServer(wgrpcServer, wjobService)
 
 	log.Println("Starting gRPC server on ", grpcLis.Addr())
 	wg.Add(1)
@@ -61,6 +70,7 @@ func main() {
 		c.HTML(http.StatusOK, "index.tmpl", gin.H{})
 	})
 	router.StaticFile("/index.js", *indexJs)
+	router.POST("/rpc/*method", gin.WrapH(grpcwebServer))
 	webServer := &http.Server{Handler: router}
 
 	log.Println("Starting web server on ", webLis.Addr())
