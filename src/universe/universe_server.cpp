@@ -24,6 +24,16 @@ class UniverseServiceImpl final : public UniverseService::Service {
     response->set_message("Pong " + request->message());
     return grpc::Status::OK;
   }
+
+  grpc::Status OpticalSample(
+      grpc::ServerContext *c,
+      OpticalSampleRequest const *req,
+      OpticalSampleResponse *rsp) override {
+    rsp->set_width(100);
+    rsp->set_height(100);
+    rsp->set_pixels("I AM PIXELS!");
+    return grpc::Status::OK;
+  };
 };
 
 int main(int argc, char **argv) {

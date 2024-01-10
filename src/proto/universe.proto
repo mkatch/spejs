@@ -4,6 +4,7 @@ option go_package = "github.com/mkacz91/spejs/pb";
 
 service UniverseService {
   rpc Ping (PingRequest) returns (PingResponse) {}
+  rpc OpticalSample (OpticalSampleRequest) returns (OpticalSampleResponse) {}
 }
 
 message PingRequest {
@@ -12,4 +13,15 @@ message PingRequest {
 
 message PingResponse {
   string message = 1;
+}
+
+message OpticalSampleRequest {
+  fixed32 x = 1;
+  fixed32 y = 2;
+}
+
+message OpticalSampleResponse {
+  uint32 width = 1;
+  uint32 height = 2;
+  bytes pixels = 3;
 }

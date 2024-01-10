@@ -18,6 +18,7 @@ add_custom_command(
     --tree-shaking=true
     --platform=browser
     --minify
+    --alias:proto="${PROTO_JS_GEN_DIR}"
     --external:google-protobuf
     --external:grpc-web
     --outfile="${BUNDLE_JS}"
@@ -26,6 +27,9 @@ add_custom_command(
     ${PROTO_JS_GEN_FILES}
 )
 
+# TODO: This is actually not respecting transitively generated files. For
+# example, if you change a .proto, then you need to trigger this target twice
+# to get the updated bundle. This probably is an issue for other targets too.
 add_custom_target(
   client ALL
   COMMENT "[client] ${BUNDLE_JS} up to date."

@@ -8,13 +8,11 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/mkacz91/spejs/pb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // TODO: I don't like passing index.html and index.js as flags. Hardcoding also
@@ -30,29 +28,38 @@ var (
 
 func main() {
 	flag.Parse()
+	err := mainWithError()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func mainWithError() error {
+	wg := sync.WaitGroup{}
 
 	grpcLis, err := net.Listen("tcp4", fmt.Sprintf(":%d", *grpcPort))
 	if err != nil {
-		log.Fatal("Unable to listen on the gRPC port: ", err)
+		return fmt.Errorf("unable to listen on the gRPC port: %w", err)
 	}
+	defer grpcLis.Close()
+
 	webLis, err := net.Listen("tcp4", fmt.Sprintf(":%d", *webPort))
 	if err != nil {
-		log.Fatal("Unable to listen on the web port: ", err)
+		return fmt.Errorf("unable to listen on the web port: %w", err)
 	}
-
-	wg := sync.WaitGroup{}
+	defer webLis.Close()
 
 	grpcServer := grpc.NewServer()
-	jobService := NewJobService()
-	pb.RegisterJobServiceServer(grpcServer, jobService)
-	grpcwebServer := grpcweb.WrapServer(
-		grpcServer,
-		grpcweb.WithAllowNonRootResource(true),
-	)
 
-	// wgrpcServer := grpc.NewServer()
-	// wjobService := NewJobService()
-	// pb.RegisterJobServiceServer(wgrpcServer, wjobService)
+	universeServiceServer, err := NewUniverseServiceServer(fmt.Sprintf(":%d", *universePort))
+	if err != nil {
+		return fmt.Errorf("unable to create UniverseService server: %w", err)
+	}
+	defer universeServiceServer.Close()
+	pb.RegisterUniverseServiceServer(grpcServer, universeServiceServer)
+
+	jobServiceServer := NewJobServiceServer()
+	pb.RegisterJobServiceServer(grpcServer, jobServiceServer)
 
 	log.Println("Starting gRPC server on ", grpcLis.Addr())
 	wg.Add(1)
@@ -63,6 +70,11 @@ func main() {
 		}
 		wg.Done()
 	}()
+
+	grpcwebServer := grpcweb.WrapServer(
+		grpcServer,
+		grpcweb.WithAllowNonRootResource(true),
+	)
 
 	router := gin.Default()
 	router.LoadHTMLFiles(*indexTmpl)
@@ -84,45 +96,13 @@ func main() {
 	}()
 
 	go func() {
-		jobService.WaitForQuit()
+		jobServiceServer.WaitForQuit()
 		grpcServer.GracefulStop()
 		webServer.Shutdown(context.Background())
 	}()
 
-	go pingUniverse()
-
-	go func() {
-		jobService.WaitForQuit()
-		grpcServer.GracefulStop()
-
-	}()
-
-	go pingUniverse()
+	go universeServiceServer.PingBackend()
 
 	wg.Wait()
-}
-
-func pingUniverse() {
-	conn, err := grpc.Dial(
-		fmt.Sprintf("localhost:%d", *universePort),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		log.Println("Failed to dial universe server:", err)
-		return
-	}
-	defer conn.Close()
-
-	universeClient := pb.NewUniverseServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	response, err := universeClient.Ping(ctx, &pb.PingRequest{Message: "Go!"})
-	if err != nil {
-		log.Println("UniverseService.Ping request failed:", err)
-		return
-	}
-
-	log.Printf("UniverseService.Ping response: %s", response.Message)
+	return nil
 }
