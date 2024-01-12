@@ -1,11 +1,8 @@
 file(GLOB_RECURSE TS_SRCS "${PKG_SRC_DIR}/*.ts")
-cmake_path(SET MAIN_TS "${PKG_SRC_DIR}/main.ts")
-list(REMOVE_ITEM TS_SRCS ${MAIN_TS})
+ts_add_dependencies(${TS_SRCS})
+ts_get_corresponding_js("${PKG_SRC_DIR}/main.ts" MAIN_JS)
 # TODO: add a mechanism to verify the globbed files agains a hardcoded ones to
 # make sure we don't miss any files.
-
-extract_ts_files(MAIN_TS MAIN_JS)
-extract_ts_files(TS_SRCS JS_SRCS)
 
 cmake_path(SET BUNDLE_JS "${PKG_BUILD_DIR}/client.js")
 
@@ -23,8 +20,11 @@ add_custom_command(
     --external:grpc-web
     --outfile="${BUNDLE_JS}"
   DEPENDS
-    ${JS_SRCS}
-    ${PROTO_JS_GEN_FILES}
+    ${TSCONFIG_JSON}
+    ${PROTO_SRCS}
+    proto_generate
+    ${TS_SRCS}
+    ts_compile
 )
 
 # TODO: This is actually not respecting transitively generated files. For

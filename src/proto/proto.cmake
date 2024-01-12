@@ -1,72 +1,68 @@
 file(GLOB PROTO_SRCS "${PKG_SRC_DIR}/*.proto")
 
-cmake_path(SET PROTOC_CPP_OUT_DIR "${PKG_BUILD_DIR}")
-cmake_path(SET PROTOC_GRPC_OUT_DIR "${PKG_BUILD_DIR}")
-cmake_path(SET PROTOC_GO_OUT_DIR "${PKG_BUILD_DIR}/go")
-cmake_path(SET PROTOC_GO_GRPC_OUT_DIR "${PROTOC_GO_OUT_DIR}")
-cmake_path(SET PROTOC_JS_OUT_DIR "${JS_BUILD_DIR}/${REL_PKG_BUILD_DIR}")
-cmake_path(SET PROTOC_GRPC_WEB_OUT_DIR "${PKG_BUILD_DIR}")
+cmake_path(SET CPP_OUT_DIR "${PKG_BUILD_DIR}")
+cmake_path(SET GRPC_OUT_DIR "${CPP_OUT_DIR}")
+cmake_path(SET GO_OUT_DIR "${PKG_BUILD_DIR}/go")
+cmake_path(SET GO_GRPC_OUT_DIR "${GO_OUT_DIR}")
+cmake_path(SET JS_OUT_DIR "${JS_BUILD_DIR}/${REL_PKG_BUILD_DIR}")
+cmake_path(SET GRPC_WEB_OUT_DIR "${PKG_BUILD_DIR}")
 
-set(GEN_FILES "")
+set(STAMPS "")
+set(CPP_GEN_FILES "")
 
 foreach (FILE ${PROTO_SRCS})
   cmake_path(GET FILE STEM STEM)
-  snake_to_pascal_case(${STEM} PASCAL_STEM)
 
-  set(PROTOC_OUT
-    "${PROTOC_CPP_OUT_DIR}/${STEM}.pb.cc"
-    "${PROTOC_CPP_OUT_DIR}/${STEM}.pb.h"
-    "${PROTOC_GRPC_OUT_DIR}/${STEM}.grpc.pb.cc"
-    "${PROTOC_GRPC_OUT_DIR}/${STEM}.grpc.pb.h"
-    "${PROTOC_GO_OUT_DIR}/${STEM}.pb.go"
-    "${PROTOC_GO_GRPC_OUT_DIR}/${STEM}_grpc.pb.go"
-    "${PROTOC_JS_OUT_DIR}/${STEM}_pb.js"
-    "${PROTOC_GRPC_WEB_OUT_DIR}/${STEM}_pb.d.ts"
-    "${PROTOC_GRPC_WEB_OUT_DIR}/${PASCAL_STEM}ServiceClientPb.ts"
+  # C++ generated files have to be explicitly added as target dependencies, but
+  # for the other languages a .stamp is sufficient.
+  set(CPP_OUT
+    "${CPP_OUT_DIR}/${STEM}.pb.cc"
+    "${CPP_OUT_DIR}/${STEM}.pb.h"
+    "${GRPC_OUT_DIR}/${STEM}.grpc.pb.cc"
+    "${GRPC_OUT_DIR}/${STEM}.grpc.pb.h"
   )
+  set(STAMP "${PKG_BUILD_DIR}/${STEM}.stamp")
 
   add_custom_command(
     COMMENT "[proto] Running protoc on ${FILE}"
-    OUTPUT ${PROTOC_OUT}
+    OUTPUT ${CPP_OUT} ${STAMP}
     COMMAND ${PROTOC}
       --proto_path="${PKG_SRC_DIR}"
       --plugin=protoc-gen-grpc="${PROTOC_GRPC_CPP_PLUGIN}"
-      --cpp_out="${PKG_BUILD_DIR}"
-      --grpc_out="${PROTOC_GRPC_OUT_DIR}"
-      --go_out=paths=source_relative:"${PROTOC_GO_OUT_DIR}"
-      --go-grpc_out=paths=source_relative:"${PROTOC_GO_GRPC_OUT_DIR}"
-      --js_out=import_style=commonjs:"${PROTOC_JS_OUT_DIR}"
-      --grpc-web_out=import_style=typescript,mode=grpcwebtext:"${PROTOC_GRPC_WEB_OUT_DIR}"
+      --cpp_out="${CPP_OUT_DIR}"
+      --grpc_out="${GRPC_OUT_DIR}"
+      --go_out=paths=source_relative:"${GO_OUT_DIR}"
+      --go-grpc_out=paths=source_relative:"${GO_GRPC_OUT_DIR}"
+      --js_out=import_style=commonjs:"${JS_OUT_DIR}"
+      --grpc-web_out=import_style=typescript,mode=grpcwebtext:"${GRPC_WEB_OUT_DIR}"
       "${FILE}"
+    COMMAND ${CMAKE_COMMAND} -E touch "${STAMP}"
     DEPENDS ${FILE}
   )
 
-  extract_ts_files(PROTOC_OUT TSC_OUT)
-  list(APPEND GEN_FILES ${PROTOC_OUT} ${TSC_OUT})
+  list(APPEND STAMPS ${STAMP})
+  list(APPEND CPP_GEN_FILES ${CPP_OUT})
 endforeach()
 
-cmake_path(SET GO_MOD "${PROTOC_GO_OUT_DIR}/go.mod")
+cmake_path(SET GO_MOD "${GO_OUT_DIR}/go.mod")
 add_custom_command(
   COMMENT "[proto] Initialize go module ${GO_MOD}"
   OUTPUT ${GO_MOD}
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${PROTOC_GO_OUT_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${GO_OUT_DIR}"
   COMMAND ${CMAKE_COMMAND} -E
-    chdir "${PROTOC_GO_OUT_DIR}"
+    chdir "${GO_OUT_DIR}"
     go mod init "github.com/mkacz91/spejs/pb"
 )
 list(APPEND GEN_FILES ${GO_MOD})
 
-set(CPP_GEN_FILES ${GEN_FILES})
-list(FILTER CPP_GEN_FILES INCLUDE REGEX ".*(\.cc|\.h)$")
-set(PROTO_CPP_GEN_FILES ${CPP_GEN_FILES} PARENT_SCOPE)
-
-set(JS_GEN_FILES ${GEN_FILES})
-list(FILTER JS_GEN_FILES INCLUDE REGEX ".*(\.js|\.js.map)$")
-set(PROTO_JS_GEN_FILES ${JS_GEN_FILES} PARENT_SCOPE)
-set(PROTO_JS_GEN_DIR ${PROTOC_JS_OUT_DIR} PARENT_SCOPE)
-
 add_custom_target(
   proto_generate
-  DEPENDS ${GEN_FILES}
+  DEPENDS ${STAMPS}
   COMMENT "[proto] All protos generated."
 )
+
+ts_add_dependencies(${PROTO_SRCS} proto_generate)
+
+set(PROTO_SRCS ${PROTO_SRCS} PARENT_SCOPE)
+set(PROTO_CPP_GEN_FILES ${CPP_GEN_FILES} PARENT_SCOPE)
+set(PROTO_JS_GEN_DIR ${JS_OUT_DIR} PARENT_SCOPE)

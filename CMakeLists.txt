@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD 20)
 cmake_path(SET ROOT_DIR ${CMAKE_SOURCE_DIR})
 cmake_path(SET CMAKE_MODULE_PATH "${ROOT_DIR}/cmake")
 cmake_path(SET SRC_DIR "${ROOT_DIR}/src")
+cmake_path(SET TSCONFIG_JSON "${ROOT_DIR}/tsconfig.json")
 
 cmake_path(SET BUILD_DIR ${CMAKE_BINARY_DIR})
 cmake_path(RELATIVE_PATH BUILD_DIR OUTPUT_VARIABLE REL_BUILD_DIR)
@@ -44,4 +45,4 @@ include_pkg(frontend)
 include_pkg(universe)
 include_pkg(launcher)
 
-add_tsc_command()
+ts_add_command()
