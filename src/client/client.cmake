@@ -18,6 +18,7 @@ add_custom_command(
     --alias:proto="${PROTO_JS_GEN_DIR}"
     --external:google-protobuf
     --external:grpc-web
+    --external:three
     --outfile="${BUNDLE_JS}"
   DEPENDS
     ${TSCONFIG_JSON}

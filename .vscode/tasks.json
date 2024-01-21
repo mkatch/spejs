@@ -6,7 +6,7 @@
 			"type": "cmake",
 			"command": "build",
 			"targets": [
-				"launcher"
+				"client"
 			],
 			"group": {
 				"kind": "build",
