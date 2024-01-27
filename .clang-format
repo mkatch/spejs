@@ -1,5 +1,5 @@
 BasedOnStyle: Chromium
-AccessModifierOffset: '-2'
+AccessModifierOffset: -2
 AlignAfterOpenBracket: AlwaysBreak
 AlignConsecutiveAssignments: 'false'
 AlignEscapedNewlines: Right
@@ -8,9 +8,11 @@ AlignTrailingComments: 'false'
 AllowShortFunctionsOnASingleLine: Inline
 BreakBeforeBraces: Attach
 BreakStringLiterals: 'true'
-ColumnLimit: '80'
+ColumnLimit: 0
 IncludeBlocks: Preserve
-IndentWidth: '2'
+IndentWidth: 2
 PointerAlignment: Right
 SortIncludes: 'true'
 SortUsingDeclarations: 'true'
+TabWidth: 2
+UseTab: ForContinuationAndIndentation
