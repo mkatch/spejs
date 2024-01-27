@@ -11,17 +11,17 @@ class RpcServer {
 	UniverseServiceImpl universe_service;
 	std::shared_ptr<grpc::Server> server;
 	std::thread waiting_thread;
-
-	RpcServer(const std::string &addr);
+	std::atomic<bool> _is_running = true;
 
 public:
-	static std::unique_ptr<RpcServer> build_and_start(const std::string &addr) {
-    return std::unique_ptr<RpcServer>(new RpcServer(addr));
-  }
+	~RpcServer();
 
-	int port() { return _port; }
+	void start(const std::string &addr);
 
-	bool is_running() { return job_service.is_running(); }
+	int port() const { return _port; }
 
-	void wait();
+	bool is_running() const { return _is_running; }
+
+private:
+	void ensure_quit();
 };

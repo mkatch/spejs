@@ -1,8 +1,9 @@
 #include "rpc.h"
 
 #include <grpcpp/grpcpp.h>
+#include <iostream>
 
-RpcServer::RpcServer(const std::string &addr) {
+void RpcServer::start(const std::string &addr) {
 	grpc::ServerBuilder builder;
 	builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &_port);
 	builder.RegisterService(&job_service);
@@ -13,14 +14,18 @@ RpcServer::RpcServer(const std::string &addr) {
 		throw std::exception("Failed to start server.");
 	}
 
-	job_service.set_server(server);
+	job_service.set_on_quit(std::bind(&RpcServer::ensure_quit, this));
 
-	// TODO: Idk why, but having server->Wait() in the main thread, and calling
-	// server->Shutdown() from another thread, doesn't work and kills the process
-	// abnormally. Investigate.
-	waiting_thread = std::thread([&] { server->Wait(); });
+	waiting_thread = std::thread([=] { server->Wait(); });
 }
 
-void RpcServer::wait() {
+RpcServer::~RpcServer() {
+	ensure_quit();
 	waiting_thread.join();
+}
+
+void RpcServer::ensure_quit() {
+	if (_is_running.exchange(false)) {
+		std::thread([=] { server->Shutdown(); }).detach();
+	}
 }

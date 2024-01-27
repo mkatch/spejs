@@ -6,7 +6,7 @@
 			"type": "cmake",
 			"command": "build",
 			"targets": [
-				"client"
+				"launcher"
 			],
 			"group": {
 				"kind": "build",
@@ -21,6 +21,28 @@
 			"command": "./build/launcher/launcher",
 			"dependsOn": [
 				"Build launcher (CMake)"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Build universe_server (CMake)",
+			"type": "cmake",
+			"command": "build",
+			"targets": [
+				"universe_server"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Run universe_server",
+			"type": "shell",
+			"command": "./build/Release/universe_server",
+			"dependsOn": [
+				"Build universe_server (CMake)"
 			],
 			"problemMatcher": []
 		}

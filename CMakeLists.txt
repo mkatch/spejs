@@ -21,9 +21,12 @@ endif()
 
 include(util.cmake)
 
+find_package(GLFW REQUIRED)
 find_package(gRPC REQUIRED)
+find_package(OpenGL REQUIRED)
 
 include_directories(
+  ${GLFW_INCLUDE_DIR}
   ${GRPC_INCLUDE_DIR}
   ${BUILD_DIR}
 )

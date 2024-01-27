@@ -1,10 +1,12 @@
 #include "job.h"
 
-void JobServiceImpl::set_server(const std::shared_ptr<grpc::Server> &server) {
+#include <iostream>
+
+void JobServiceImpl::set_on_quit(const std::function<void()> &callback) {
 	const std::lock_guard lock(mut);
-	this->server = server;
-	if (!_is_running) {
-		server->Shutdown();
+	on_quit = callback;
+	if (quit_requested) {
+		on_quit();
 	}
 }
 
@@ -16,10 +18,10 @@ grpc::Status JobServiceImpl::Status(grpc::ServerContext *c, Empty const *req, Jo
 
 grpc::Status JobServiceImpl::Quit(grpc::ServerContext *context, Empty const *request, Empty *response) {
 	const std::lock_guard lock(mut);
-	if (is_running()) {
-		_is_running = false;
-		if (server) {
-			server->Shutdown();
+	if (!quit_requested) {
+		quit_requested = true;
+		if (on_quit) {
+			on_quit();
 		}
 	}
 	return grpc::Status::OK;
