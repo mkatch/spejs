@@ -1,7 +1,6 @@
 #include "ui.h"
+#include "gl.h"
 #include "rpc.h"
-
-#include <GLFW/glfw3.h>
 
 UI::UI() {
 	if (!glfwInit()) {
@@ -19,6 +18,10 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		throw std::exception("Failed to create GLFW window");
 	}
 	glfwMakeContextCurrent(window);
+
+	load_gl_api();
+
+	glClearColor(0.5f, 0.5f, 0.1f, 0.0f);
 
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
 		glClear(GL_COLOR_BUFFER_BIT);

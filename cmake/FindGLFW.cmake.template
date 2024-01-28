@@ -1,0 +1,6 @@
+cmake_path(SET GLFW_DIR "C:/Users/mkacz/Library/glfw-3.3.9")
+cmake_path(SET GLFW_INCLUDE_DIR "${GLFW_DIR}/include")
+add_library(glfw STATIC IMPORTED)
+set_target_properties(glfw PROPERTIES
+  IMPORTED_LOCATION "${GLFW_DIR}/lib-vc2022/glfw3.lib"
+)

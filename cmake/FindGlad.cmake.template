@@ -1,0 +1,2 @@
+cmake_path(SET GLAD
+  "C:/Users/mkacz/AppData/Roaming/Python/Python312/Scripts/glad")

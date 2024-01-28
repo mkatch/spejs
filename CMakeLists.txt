@@ -21,6 +21,7 @@ endif()
 
 include(util.cmake)
 
+find_package(Glad REQUIRED)
 find_package(GLFW REQUIRED)
 find_package(gRPC REQUIRED)
 find_package(OpenGL REQUIRED)
