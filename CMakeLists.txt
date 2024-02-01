@@ -29,24 +29,30 @@ find_package(OpenGL REQUIRED)
 include_directories(
   ${GLFW_INCLUDE_DIR}
   ${GRPC_INCLUDE_DIR}
+  ${SRC_DIR}
   ${BUILD_DIR}
 )
 
 include(ts.cmake)
 
-function(include_pkg PKG_NAME)
-  cmake_path(SET PKG_SRC_DIR "${SRC_DIR}/${PKG_NAME}")
-  cmake_path(SET PKG_BUILD_DIR "${BUILD_DIR}/${PKG_NAME}")
-  cmake_path(SET REL_PKG_BUILD_DIR "${REL_BUILD_DIR}/${PKG_NAME}")
+function(include_pkg REL_PKG_CMAKE)
+  cmake_path(SET PKG_CMAKE "${SRC_DIR}/${REL_PKG_CMAKE}")
+  cmake_path(GET REL_PKG_CMAKE PARENT_PATH REL_PKG_DIR)
+  cmake_path(SET PKG_SRC_DIR "${SRC_DIR}/${REL_PKG_DIR}")
+  cmake_path(GET PKG_CMAKE STEM PKG_NAME)
+  cmake_path(SET PKG_BUILD_DIR "${BUILD_DIR}/${REL_PKG_DIR}")
+  cmake_path(SET REL_PKG_BUILD_DIR "${REL_BUILD_DIR}/${REL_PKG_DIR}")
   file(MAKE_DIRECTORY ${PKG_BUILD_DIR})
 
-  include("${PKG_SRC_DIR}/${PKG_NAME}.cmake")
+  include(${PKG_CMAKE})
 endfunction()
 
-include_pkg(proto)
-include_pkg(client)
-include_pkg(frontend)
-include_pkg(universe)
-include_pkg(launcher)
+include_pkg(proto/proto.cmake)
+include_pkg(gl/glpp/glpp.cmake)
+include_pkg(gl/shader_bundler/shader_bundler.cmake)
+include_pkg(client/client.cmake)
+include_pkg(frontend/frontend.cmake)
+include_pkg(universe/universe.cmake)
+include_pkg(launcher/launcher.cmake)
 
 ts_add_command()
