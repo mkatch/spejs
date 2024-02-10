@@ -5,14 +5,13 @@
 
 struct Shaders : public gl::Shaders {
 	typedef ShaderSources Src;
-	typedef gl::Attribute Attribute;
 
 	struct BasicProgram : gl::Program {
-		Attribute position = {"position"};
-		Attribute color = {"color"};
+		in_vec4 position = {"position"};
+		in_vec4 color = {"color"};
 
 		BasicProgram()
-				: Program(Src::basic_v, Src::basic_f) {}
+				: Program("BasicProgram", Src::basic_v, Src::basic_f) {}
 	};
 	const BasicProgram basic_program;
 };

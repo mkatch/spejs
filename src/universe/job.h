@@ -4,7 +4,7 @@
 #include <functional>
 #include <mutex>
 
-#include "proto/job.grpc.pb.h"
+#include <proto/job.grpc.pb.h>
 
 class JobServiceImpl final : public JobService::Service {
 	std::mutex mut;

@@ -2,7 +2,7 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include "proto/universe.grpc.pb.h"
+#include <proto/universe.grpc.pb.h>
 
 class UniverseServiceImpl final : public UniverseService::Service {
 public:

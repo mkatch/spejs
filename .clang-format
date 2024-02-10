@@ -1,4 +1,6 @@
 BasedOnStyle: Chromium
+BracedInitializerIndentWidth: 2
+BreakConstructorInitializers: BeforeComma
 AccessModifierOffset: -2
 AlignAfterOpenBracket: AlwaysBreak
 AlignConsecutiveAssignments: 'false'
@@ -9,9 +11,12 @@ AllowShortFunctionsOnASingleLine: Inline
 BreakBeforeBraces: Attach
 BreakStringLiterals: 'true'
 ColumnLimit: 0
+FixNamespaceComments: true
 IncludeBlocks: Preserve
 IndentWidth: 2
+IndentPPDirectives: AfterHash
 PointerAlignment: Right
+ShortNamespaceLines: 0
 SortIncludes: 'true'
 SortUsingDeclarations: 'true'
 TabWidth: 2

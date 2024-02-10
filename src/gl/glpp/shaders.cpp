@@ -36,12 +36,13 @@ Shaders::Shaders() {
 	ShadersBuilder::shaders = this;
 }
 
-Attribute::Attribute(char const *name)
-		: name(name) {
+Attribute::Attribute(const char *name, const GLenum data_type)
+		: name(name), data_type(data_type) {
 	ShadersBuilder::current_program()->attributes.push_back(this);
 }
 
-Program::Program(VertexShaderSource const &vertex_shader_source, FragmentShaderSource const &fragment_shader_source) {
+Program::Program(const char *name, VertexShaderSource const &vertex_shader_source, FragmentShaderSource const &fragment_shader_source)
+		: name(name) {
 	ShadersBuilder::push_program(this, &vertex_shader_source, &fragment_shader_source);
 }
 
@@ -93,6 +94,40 @@ GLuint link_program(const VertexShader *vertex_shader, const FragmentShader *fra
 	return program_id;
 }
 
+void validate_attributes(GLuint program_id, const char *program_name, const std::vector<const Attribute *> &attributes) {
+	GLint max_attribute_name_length = 0;
+	glGetProgramiv(program_id, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &max_attribute_name_length);
+	string attribute_name_storage((char)0, max_attribute_name_length + 1);
+	char *attribute_name = attribute_name_storage.data();
+
+	GLint active_attribute_count = 0;
+	glGetProgramiv(program_id, GL_ACTIVE_ATTRIBUTES, &active_attribute_count);
+
+	for (int i = 0; i < active_attribute_count; ++i) {
+		GLint size;
+		GLenum data_type;
+		glGetActiveAttrib(program_id, i, attribute_name_storage.capacity(), nullptr, &size, &data_type, attribute_name);
+		for (auto &attribute : attributes) {
+			if (strcmp(attribute->name, attribute_name)) {
+				if (attribute->data_type != data_type) {
+					throw gl::exception("Attribute " + squote(attribute->name) + " has wrong data type, expected " + enum_string(data_type) + ", got " + enum_string(attribute->data_type) + ".");
+				}
+				break;
+			}
+		}
+	}
+
+	for (auto &attribute : attributes) {
+		if (attribute->location == -1) {
+			if (attribute->name[0] == '_') {
+				std::cout << "WARNING: Attribute " << squote(attribute->name) << " is not used in program " << program_name << std::endl;
+				continue;
+			}
+			throw gl::exception("Attribute " + squote(attribute->name) + " not found in program " + string(program_name) + ".");
+		}
+	}
+}
+
 void Shaders::compile_all() {
 	for (auto vertex_shader : vertex_shaders) {
 		vertex_shader->shader_id = compile_shader(vertex_shader->source);
@@ -106,6 +141,7 @@ void Shaders::compile_all() {
 			// const_cast is ok, because program owns the attributes.
 			const_cast<Attribute *>(attribute)->location = glGetAttribLocation(program->program_id, attribute->name);
 		}
+		validate_attributes(program->program_id, program->name, program->attributes);
 	}
 }
 

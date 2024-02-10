@@ -23,6 +23,8 @@ foreach (FILE ${PROTO_SRCS})
   )
   set(STAMP "${PKG_BUILD_DIR}/${STEM}.stamp")
 
+  make_directory(${JS_OUT_DIR})
+
   add_custom_command(
     COMMENT "[proto] Running protoc on ${FILE}"
     OUTPUT ${CPP_OUT} ${STAMP}
@@ -57,7 +59,7 @@ list(APPEND GEN_FILES ${GO_MOD})
 
 add_custom_target(
   proto_generate
-  DEPENDS ${STAMPS}
+  DEPENDS ${STAMPS} ${GO_MOD}
   COMMENT "[proto] All protos generated."
 )
 

@@ -1,5 +1,3 @@
-
-
 file(GLOB SHADER_SRCS "${PKG_SRC_DIR}/shaders/*.glsl")
 cmake_path(SET SHADER_SOURCES_H "${PKG_BUILD_DIR}/shaders/shader_sources.h")
 bundle_shaders_cpp(
@@ -8,7 +6,7 @@ bundle_shaders_cpp(
   ${SHADER_SRCS}
 )
 
-file(GLOB UNIVERSE_SERVER_SRCS "${PKG_SRC_DIR}/*.cpp")
+file(GLOB UNIVERSE_SERVER_SRCS "${PKG_SRC_DIR}/*.cpp" "${PKG_SRC_DIR}/*.h")
 add_executable(universe_server
   ${UNIVERSE_SERVER_SRCS}
   ${PROTO_CPP_GEN_FILES}

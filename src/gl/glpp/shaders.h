@@ -36,26 +36,61 @@ struct FragmentShader {
 struct Attribute {
 	const char *name;
 	GLuint location;
+	GLenum data_type;
 
-	Attribute(char const *name);
+protected:
+	Attribute(const char *name, GLenum data_type);
 };
+
+#define _Attribute(suffix, gl_data_type)                                    \
+	Attribute_##suffix : public Attribute {                                   \
+		Attribute_##suffix(char const *name) : Attribute(name, gl_data_type) {} \
+	}
+#define _Attribute_structs(scalar_type, vec_prefix, gl_component_type) \
+	struct _Attribute(scalar_type, gl_component_type);                   \
+	struct _Attribute(vec_prefix##vec2, gl_component_type##_VEC2);       \
+	struct _Attribute(vec_prefix##vec3, gl_component_type##_VEC3);       \
+	struct _Attribute(vec_prefix##vec4, gl_component_type##_VEC4)
+
+_Attribute_structs(float, , GL_FLOAT);
+_Attribute_structs(int, i, GL_INT);
+_Attribute_structs(uint, u, GL_UNSIGNED_INT);
+_Attribute_structs(double, d, GL_DOUBLE);
+
+#undef _Attribute_structs
+#undef _Attribute
 
 // Wraps an OpenGL shader program object.
 struct Program {
 	GLuint program_id;
+	const char *name;
 	const VertexShader *vertex_shader;
 	const FragmentShader *fragment_shader;
 	std::vector<const Attribute *> attributes;
 
 protected:
-	Program(VertexShaderSource const &vertex_shader_source, FragmentShaderSource const &fragment_shader_source);
+// Convenience aliases, so that the declarations resemble GLSL code.
+#define _Attribute_typedefs(scalar_type, vec_prefix)          \
+	typedef Attribute_##scalar_type in_##scalar_type;           \
+	typedef Attribute_##vec_prefix##vec2 in_##vec_prefix##vec2; \
+	typedef Attribute_##vec_prefix##vec3 in_##vec_prefix##vec3; \
+	typedef Attribute_##vec_prefix##vec4 in_##vec_prefix##vec4
+
+	_Attribute_typedefs(float, );
+	_Attribute_typedefs(int, i);
+	_Attribute_typedefs(uint, u);
+	_Attribute_typedefs(double, d);
+
+#undef _Attribute_typedefs
+
+	Program(const char *name, VertexShaderSource const &vertex_shader_source, FragmentShaderSource const &fragment_shader_source);
 };
 
 // Base class for declaring shader interfaces.
 //
 // The implementation of this class relies on C++ initialization order. To
-// declare declare shaders for your application, one must extend this class and
-// follow a specific pattern.
+// declare shaders for your application, one must extend this class and follow
+// a specific pattern.
 //
 // class MyShaders : public gl::Shaders {
 //   struct MyProgram : gl::Program {
@@ -98,6 +133,8 @@ public:
 	void compile_all();
 
 	friend class ShadersBuilder;
+
+	// TODO: Utils for glValidateProgram?
 
 protected:
 	Shaders();
