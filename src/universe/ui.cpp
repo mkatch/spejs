@@ -16,6 +16,11 @@ UI::~UI() {
 	glfwTerminate();
 }
 
+struct BasicVertex {
+	GLfloat x, y;
+	GLfloat r, g, b;
+};
+
 void UI::event_loop(const RpcServer *rpc_server) {
 	GLFWwindow *window = glfwCreateWindow(800, 600, "Universe server", nullptr, nullptr);
 	if (!window) {
@@ -40,35 +45,18 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	GLuint vertex_buffer;
 	gl_error_guard(glCreateBuffers(1, &vertex_buffer));
 	glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-	const float vertices[] = {
-			// position 0
-			-0.5f,
-			-0.5f,
-			// color 0
-			1.0f,
-			0.0f,
-			0.0f,
-			// position 1
-			0.5f,
-			-0.5f,
-			// color 1
-			0.0f,
-			1.0f,
-			0.0f,
-			// position 2
-			0.0f,
-			0.5f,
-			// color 2
-			0.0f,
-			0.0f,
-			1.0f,
+	const BasicVertex vertices[] = {
+		{-0.5f, -0.5f, 1.0f, 0.0f, 0.0f},
+		{ 0.5f, -0.5f, 0.0f, 1.0f, 0.0f},
+		{ 0.0f,  0.5f, 0.0f, 0.0f, 1.0f},
 	};
+	const int d[] = {1, 2, 4};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	const GLsizei stride = 5 * sizeof(float);
-	glVertexAttribPointer(p.position.location, 2, GL_FLOAT, GL_FALSE, stride, nullptr);
+	const GLsizei stride = sizeof(BasicVertex);
+	glVertexAttribPointer(p.position.location, 2, GL_FLOAT, GL_FALSE, stride, (void *)((char *)&vertices->x - (char *)vertices));
 	glEnableVertexAttribArray(p.position.location);
-	glVertexAttribPointer(p.color.location, 3, GL_FLOAT, GL_FALSE, stride, (void *)(2 * sizeof(float)));
+	glVertexAttribPointer(p.color.location, 3, GL_FLOAT, GL_FALSE, stride, (void *)((char *)&vertices->r - (char *)vertices));
 	glEnableVertexAttribArray(p.color.location);
 
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
