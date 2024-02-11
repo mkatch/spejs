@@ -17,8 +17,8 @@ UI::~UI() {
 }
 
 struct BasicVertex {
-	GLfloat x, y;
-	GLfloat r, g, b;
+	GLfloat position[2];
+	GLfloat color[3];
 };
 
 void UI::event_loop(const RpcServer *rpc_server) {
@@ -42,22 +42,18 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	gl_error_guard(glCreateVertexArrays(1, &vertex_array));
 	glBindVertexArray(vertex_array);
 
-	GLuint vertex_buffer;
-	gl_error_guard(glCreateBuffers(1, &vertex_buffer));
-	glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
 	const BasicVertex vertices[] = {
-		{-0.5f, -0.5f, 1.0f, 0.0f, 0.0f},
-		{ 0.5f, -0.5f, 0.0f, 1.0f, 0.0f},
-		{ 0.0f,  0.5f, 0.0f, 0.0f, 1.0f},
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{ {0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+		{  {0.0f, 0.5f}, {0.0f, 0.0f, 1.0f}},
 	};
-	const int d[] = {1, 2, 4};
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	gl::VertexBuffer<BasicVertex> vertex_buffer;
+	vertex_buffer.buffer_data(vertices);
 
-	const GLsizei stride = sizeof(BasicVertex);
-	glVertexAttribPointer(p.position.location, 2, GL_FLOAT, GL_FALSE, stride, (void *)((char *)&vertices->x - (char *)vertices));
-	glEnableVertexAttribArray(p.position.location);
-	glVertexAttribPointer(p.color.location, 3, GL_FLOAT, GL_FALSE, stride, (void *)((char *)&vertices->r - (char *)vertices));
-	glEnableVertexAttribArray(p.color.location);
+	vertex_buffer.bind([&](auto builder, auto base) {
+		builder.enable_attribute(p.position, base->position);
+		builder.enable_attribute(p.color, base->color);
+	});
 
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
 		glClear(GL_COLOR_BUFFER_BIT);

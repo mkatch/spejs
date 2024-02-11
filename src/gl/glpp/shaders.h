@@ -17,8 +17,8 @@ struct ShaderSource {
 	const char *source;
 };
 
-struct VertexShaderSource : public ShaderSource {};
-struct FragmentShaderSource : public ShaderSource {};
+struct VertexShaderSource : public ShaderSource { };
+struct FragmentShaderSource : public ShaderSource { };
 
 // Wraps an OpenGL shader object of type GL_VERTEX_SHADER.
 struct VertexShader {
@@ -42,14 +42,14 @@ protected:
 	Attribute(const char *name, GLenum data_type);
 };
 
-#define _Attribute(suffix, gl_data_type)                                    \
-	Attribute_##suffix : public Attribute {                                   \
-		Attribute_##suffix(char const *name) : Attribute(name, gl_data_type) {} \
+#define _Attribute(suffix, gl_data_type)                                     \
+	Attribute_##suffix : public Attribute {                                    \
+		Attribute_##suffix(char const *name) : Attribute(name, gl_data_type) { } \
 	}
-#define _Attribute_structs(scalar_type, vec_prefix, gl_component_type) \
-	struct _Attribute(scalar_type, gl_component_type);                   \
-	struct _Attribute(vec_prefix##vec2, gl_component_type##_VEC2);       \
-	struct _Attribute(vec_prefix##vec3, gl_component_type##_VEC3);       \
+#define _Attribute_structs(scalar_suffix, vec_prefix, gl_component_type) \
+	struct _Attribute(scalar_suffix, gl_component_type);                   \
+	struct _Attribute(vec_prefix##vec2, gl_component_type##_VEC2);         \
+	struct _Attribute(vec_prefix##vec3, gl_component_type##_VEC3);         \
 	struct _Attribute(vec_prefix##vec4, gl_component_type##_VEC4)
 
 _Attribute_structs(float, , GL_FLOAT);
