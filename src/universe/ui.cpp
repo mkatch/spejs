@@ -83,6 +83,19 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 		glUseProgram(s.program_id);
 		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
+		s.projection = {
+			{1, 0, 0, 0},
+			{0, 1, 0, 0},
+			{0, 0, 1, 0},
+			{0, 0, 0, 1},
+		};
+		s.model = {
+			{0.2,   0,   0, 0},
+			{  0, 0.2,   0, 0},
+			{  0,   0, 0.2, 0},
+			{  0,   0,   0, 1},
+		};
+
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
 
@@ -94,9 +107,9 @@ void UI::event_loop(const RpcServer *rpc_server) {
 gl::VertexBuffer<SolidVertex> create_cube_vertices() {
 	std::vector<SolidVertex> vertices;
 	auto tagv = [](int tag, GLfloat(&v)[3]) -> void {
-		v[0] = (tag & 4) ? 0.1f : -0.1f;
-		v[1] = (tag & 2) ? 0.1f : -0.1f;
-		v[2] = (tag & 1) ? 0.1f : -0.1f;
+		v[0] = (tag & 4) ? 1.0f : -1.0f;
+		v[1] = (tag & 2) ? 1.0f : -1.0f;
+		v[2] = (tag & 1) ? 1.0f : -1.0f;
 	};
 	auto push_vertex = [&](int p, int n) -> void {
 		SolidVertex v;

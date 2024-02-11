@@ -75,7 +75,6 @@ public:
 	_enable_attribute_overloads(float, , GLfloat, GL_FLOAT);
 	_enable_attribute_overloads(int, i, GLint, GL_INT);
 	_enable_attribute_overloads(uint, u, GLuint, GL_UNSIGNED_INT);
-	_enable_attribute_overloads(double, d, GLdouble, GL_DOUBLE);
 
 #undef _enable_attribute_overloads
 #undef _enable_attribute

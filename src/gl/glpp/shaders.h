@@ -70,6 +70,13 @@ protected:
 			glUniform##component_count##gl_setter_infix##v(location, 1, value);                         \
 		}                                                                                             \
 	}
+#define _matrix_Uniform(matrix_size, row_count, column_count)                                 \
+	Uniform_mat##matrix_size : public Uniform {                                                 \
+		Uniform_mat##matrix_size(char const *name) : Uniform(name, GL_FLOAT_MAT##matrix_size) { } \
+		void operator=(const GLfloat /**/ (&value)[row_count][column_count]) const {              \
+			glUniformMatrix##matrix_size##fv(location, 1, GL_TRUE, *value);                         \
+		}                                                                                         \
+	}
 #define _vector_Attributes_Uniforms(glsl_component_type, glsl_vec_prefix, gl_component_type, gl_setter_infix, cpp_component_type) \
 	struct _Attribute(glsl_component_type, gl_component_type);                                                                      \
 	struct _Attribute(glsl_vec_prefix##vec2, gl_component_type##_VEC2);                                                             \
@@ -83,9 +90,19 @@ protected:
 _vector_Attributes_Uniforms(float, , GL_FLOAT, f, GLfloat);
 _vector_Attributes_Uniforms(int, i, GL_INT, i, GLint);
 _vector_Attributes_Uniforms(uint, u, GL_UNSIGNED_INT, ui, GLuint);
-_vector_Attributes_Uniforms(double, d, GL_DOUBLE, d, GLdouble);
+
+struct _matrix_Uniform(2, 2, 2);
+struct _matrix_Uniform(3, 3, 3);
+struct _matrix_Uniform(4, 4, 4);
+struct _matrix_Uniform(2x3, 3, 2);
+struct _matrix_Uniform(3x2, 2, 3);
+struct _matrix_Uniform(2x4, 4, 2);
+struct _matrix_Uniform(4x2, 2, 4);
+struct _matrix_Uniform(3x4, 4, 3);
+struct _matrix_Uniform(4x3, 3, 4);
 
 #undef _vector_Attributes_Uniforms
+#undef _matrix_Uniform
 #undef _vector_Uniform
 #undef _scalar_Uniform
 #undef _Attribute
@@ -113,12 +130,24 @@ protected:
 	_Attribute_Uniform_typedef(vec_prefix##vec2);                     \
 	_Attribute_Uniform_typedef(vec_prefix##vec3);                     \
 	_Attribute_Uniform_typedef(vec_prefix##vec4)
+#define _matrix_Uniform_typedef(matrix_size) \
+	_Uniform_typedef(mat##matrix_size)
 
 	_vector_Attribute_Uniform_typedefs(float, );
 	_vector_Attribute_Uniform_typedefs(int, i);
 	_vector_Attribute_Uniform_typedefs(uint, u);
-	_vector_Attribute_Uniform_typedefs(double, d);
 
+	_matrix_Uniform_typedef(2);
+	_matrix_Uniform_typedef(3);
+	_matrix_Uniform_typedef(4);
+	_matrix_Uniform_typedef(2x3);
+	_matrix_Uniform_typedef(3x2);
+	_matrix_Uniform_typedef(2x4);
+	_matrix_Uniform_typedef(4x2);
+	_matrix_Uniform_typedef(3x4);
+	_matrix_Uniform_typedef(4x3);
+
+#undef _matrix_Uniform_typedef
 #undef _vector_Attribute_Uniform_typedefs
 #undef _Attribtue_Uniform_typedef
 #undef _Uniform_typedef
