@@ -36,47 +36,58 @@ struct FragmentShader {
 struct Uniform {
 	GLuint location;
 	const char *name;
-	GLenum data_type;
+	GLenum type;
 
 protected:
-	Uniform(const char *name, GLenum data_type);
+	Uniform(const char *name, GLenum type);
 };
 
 // Describes an attribute of a shader program.
 struct Attribute {
 	GLuint location;
 	const char *name;
-	GLenum data_type;
+	GLenum type;
 
 protected:
-	Attribute(const char *name, GLenum data_type);
+	Attribute(const char *name, GLenum type);
 };
 
-#define _Attribute(suffix, gl_data_type)                                     \
-	Attribute_##suffix : public Attribute {                                    \
-		Attribute_##suffix(char const *name) : Attribute(name, gl_data_type) { } \
+#define _Attribute(glsl_type, gl_type)                                     \
+	Attribute_##glsl_type : public Attribute {                               \
+		Attribute_##glsl_type(char const *name) : Attribute(name, gl_type) { } \
 	}
-#define _Uniform(suffix, gl_data_type)                                   \
-	Uniform_##suffix : public Uniform {                                    \
-		Uniform_##suffix(char const *name) : Uniform(name, gl_data_type) { } \
+#define _scalar_Uniform(glsl_type, gl_type, gl_setter_infix, cpp_component_type) \
+	Uniform_##glsl_type : public Uniform {                                         \
+		Uniform_##glsl_type(char const *name) : Uniform(name, gl_type) { }           \
+		void operator=(cpp_component_type value) const {                             \
+			glUniform1##gl_setter_infix(location, value);                              \
+		}                                                                            \
 	}
-#define _vector_Attributes_Uniforms(scalar_suffix, vec_prefix, gl_component_type) \
-	struct _Attribute(scalar_suffix, gl_component_type);                            \
-	struct _Attribute(vec_prefix##vec2, gl_component_type##_VEC2);                  \
-	struct _Attribute(vec_prefix##vec3, gl_component_type##_VEC3);                  \
-	struct _Attribute(vec_prefix##vec4, gl_component_type##_VEC4);                  \
-	struct _Uniform(scalar_suffix, gl_component_type);                              \
-	struct _Uniform(vec_prefix##vec2, gl_component_type##_VEC2);                    \
-	struct _Uniform(vec_prefix##vec3, gl_component_type##_VEC3);                    \
-	struct _Uniform(vec_prefix##vec4, gl_component_type##_VEC4)
+#define _vector_Uniform(component_count, glsl_type, gl_type, gl_setter_infix, cpp_component_type) \
+	Uniform_##glsl_type : public Uniform {                                                          \
+		Uniform_##glsl_type(char const *name) : Uniform(name, gl_type) { }                            \
+		void operator=(const cpp_component_type /**/ (&value)[component_count]) const {               \
+			glUniform##component_count##gl_setter_infix##v(location, 1, value);                         \
+		}                                                                                             \
+	}
+#define _vector_Attributes_Uniforms(glsl_component_type, glsl_vec_prefix, gl_component_type, gl_setter_infix, cpp_component_type) \
+	struct _Attribute(glsl_component_type, gl_component_type);                                                                      \
+	struct _Attribute(glsl_vec_prefix##vec2, gl_component_type##_VEC2);                                                             \
+	struct _Attribute(glsl_vec_prefix##vec3, gl_component_type##_VEC3);                                                             \
+	struct _Attribute(glsl_vec_prefix##vec4, gl_component_type##_VEC4);                                                             \
+	struct _scalar_Uniform(glsl_component_type, gl_component_type, gl_setter_infix, cpp_component_type);                            \
+	struct _vector_Uniform(2, glsl_vec_prefix##vec2, gl_component_type##_VEC2, gl_setter_infix, cpp_component_type);                \
+	struct _vector_Uniform(3, glsl_vec_prefix##vec3, gl_component_type##_VEC3, gl_setter_infix, cpp_component_type);                \
+	struct _vector_Uniform(4, glsl_vec_prefix##vec4, gl_component_type##_VEC4, gl_setter_infix, cpp_component_type)
 
-_vector_Attributes_Uniforms(float, , GL_FLOAT);
-_vector_Attributes_Uniforms(int, i, GL_INT);
-_vector_Attributes_Uniforms(uint, u, GL_UNSIGNED_INT);
-_vector_Attributes_Uniforms(double, d, GL_DOUBLE);
+_vector_Attributes_Uniforms(float, , GL_FLOAT, f, GLfloat);
+_vector_Attributes_Uniforms(int, i, GL_INT, i, GLint);
+_vector_Attributes_Uniforms(uint, u, GL_UNSIGNED_INT, ui, GLuint);
+_vector_Attributes_Uniforms(double, d, GL_DOUBLE, d, GLdouble);
 
 #undef _vector_Attributes_Uniforms
-#undef _Uniform
+#undef _vector_Uniform
+#undef _scalar_Uniform
 #undef _Attribute
 
 // Wraps an OpenGL shader program object.

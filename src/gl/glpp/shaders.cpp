@@ -36,13 +36,13 @@ Shaders::Shaders() {
 	ShadersBuilder::shaders = this;
 }
 
-Uniform::Uniform(const char *name, const GLenum data_type)
-		: name(name), data_type(data_type) {
+Uniform::Uniform(const char *name, const GLenum type)
+		: name(name), type(type) {
 	ShadersBuilder::current_program()->uniforms.push_back(this);
 }
 
-Attribute::Attribute(const char *name, const GLenum data_type)
-		: name(name), data_type(data_type) {
+Attribute::Attribute(const char *name, const GLenum type)
+		: name(name), type(type) {
 	ShadersBuilder::current_program()->attributes.push_back(this);
 }
 
@@ -100,22 +100,22 @@ GLuint link_program(const VertexShader *vertex_shader, const FragmentShader *fra
 }
 
 void validate_uniforms(GLuint program_id, const char *program_name, const std::vector<const Uniform *> &uniforms) {
-	GLint max_uniform_name_length = 0;
-	glGetProgramiv(program_id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_uniform_name_length);
-	string uniform_name_storage((char)0, max_uniform_name_length + 1);
-	char *uniform_name = uniform_name_storage.data();
+	GLint max_name_length = 0;
+	glGetProgramiv(program_id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_name_length);
+	string name_storage((char)0, max_name_length + 1);
+	char *name = name_storage.data();
 
 	GLint active_uniform_count = 0;
 	glGetProgramiv(program_id, GL_ACTIVE_UNIFORMS, &active_uniform_count);
 
 	for (int i = 0; i < active_uniform_count; ++i) {
 		GLint size;
-		GLenum data_type;
-		glGetActiveUniform(program_id, i, uniform_name_storage.capacity(), nullptr, &size, &data_type, uniform_name);
+		GLenum type;
+		glGetActiveUniform(program_id, i, name_storage.capacity(), nullptr, &size, &type, name);
 		for (auto &uniform : uniforms) {
-			if (strcmp(uniform->name, uniform_name) == 0) {
-				if (uniform->data_type != data_type) {
-					throw gl::exception("Uniform " + string(program_name) + "." + uniform->name + " has wrong data type; expected " + enum_string(data_type) + ", got " + enum_string(uniform->data_type) + ".");
+			if (strcmp(uniform->name, name) == 0) {
+				if (uniform->type != type) {
+					throw gl::exception("Uniform " + string(program_name) + "." + uniform->name + " has wrong data type; expected " + enum_string(type) + ", got " + enum_string(uniform->type) + ".");
 				}
 				break;
 			}
@@ -134,22 +134,22 @@ void validate_uniforms(GLuint program_id, const char *program_name, const std::v
 }
 
 void validate_attributes(GLuint program_id, const char *program_name, const std::vector<const Attribute *> &attributes) {
-	GLint max_attribute_name_length = 0;
-	glGetProgramiv(program_id, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &max_attribute_name_length);
-	string attribute_name_storage((char)0, max_attribute_name_length + 1);
-	char *attribute_name = attribute_name_storage.data();
+	GLint max_name_length = 0;
+	glGetProgramiv(program_id, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &max_name_length);
+	string name_storage((char)0, max_name_length + 1);
+	char *name = name_storage.data();
 
 	GLint active_attribute_count = 0;
 	glGetProgramiv(program_id, GL_ACTIVE_ATTRIBUTES, &active_attribute_count);
 
 	for (int i = 0; i < active_attribute_count; ++i) {
 		GLint size;
-		GLenum data_type;
-		glGetActiveAttrib(program_id, i, attribute_name_storage.capacity(), nullptr, &size, &data_type, attribute_name);
+		GLenum type;
+		glGetActiveAttrib(program_id, i, name_storage.capacity(), nullptr, &size, &type, name);
 		for (auto &attribute : attributes) {
-			if (strcmp(attribute->name, attribute_name) == 0) {
-				if (attribute->data_type != data_type) {
-					throw gl::exception("Attribute " + string(program_name) + "." + attribute->name + " has wrong data type; expected " + enum_string(data_type) + ", got " + enum_string(attribute->data_type) + ".");
+			if (strcmp(attribute->name, name) == 0) {
+				if (attribute->type != type) {
+					throw gl::exception("Attribute " + string(program_name) + "." + attribute->name + " has wrong data type; expected " + enum_string(type) + ", got " + enum_string(attribute->type) + ".");
 				}
 				break;
 			}

@@ -82,7 +82,7 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glUseProgram(s.program_id);
-		glUniform4f(s.color.location, 1.0, 1.0, 1.0, 1.0);
+		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
 
