@@ -3,6 +3,9 @@
 #include <functional>
 #include "common.h"
 
+#include "shaders.h"
+#include "transfer_types.h"
+
 namespace gl {
 
 class VertexArrayBuilder;
@@ -56,28 +59,33 @@ class VertexArrayBuilder {
 	GLsizei stride;
 
 public:
-#define _enable_attribute(suffix, cpp_component_type, gl_component_type, size)                          \
-	void enable_attribute(const Attribute_##suffix &attribute, const cpp_component_type(&offset)[size]) { \
-		enable_attribute(attribute.location, size, gl_component_type, offset);                              \
+#define _enable_attribute_scalar(glsl_type, gl_component_type, cpp_component_type)                 \
+	void enable_attribute(const Attribute_##glsl_type &attribute, const cpp_component_type &value) { \
+		enable_attribute(attribute.location, 1, gl_component_type, &value);                            \
 	}
-#define _enable_attribute_overloads(scalar_suffix, vec_prefix, cpp_component_type, gl_component_type) \
-	_enable_attribute(scalar_suffix, cpp_component_type, gl_component_type, 1);                         \
-	_enable_attribute(vec_prefix##vec2, cpp_component_type, gl_component_type, 1);                      \
-	_enable_attribute(vec_prefix##vec2, cpp_component_type, gl_component_type, 2);                      \
-	_enable_attribute(vec_prefix##vec3, cpp_component_type, gl_component_type, 1);                      \
-	_enable_attribute(vec_prefix##vec3, cpp_component_type, gl_component_type, 2);                      \
-	_enable_attribute(vec_prefix##vec3, cpp_component_type, gl_component_type, 3);                      \
-	_enable_attribute(vec_prefix##vec4, cpp_component_type, gl_component_type, 1);                      \
-	_enable_attribute(vec_prefix##vec4, cpp_component_type, gl_component_type, 2);                      \
-	_enable_attribute(vec_prefix##vec4, cpp_component_type, gl_component_type, 3);                      \
-	_enable_attribute(vec_prefix##vec4, cpp_component_type, gl_component_type, 4);
+#define _enable_attribute_vector(value_size, attribute_size, glsl_vec_prefix, gl_component_type)                                            \
+	void enable_attribute(const Attribute_##glsl_vec_prefix##vec##attribute_size &attribute, const glsl_vec_prefix##vec##value_size &value) { \
+		enable_attribute(attribute.location, value_size, gl_component_type, value.data);                                                        \
+	}
+#define _enable_attribute_overloads(glsl_component_type, glsl_vec_prefix, gl_component_type, cpp_component_type) \
+	_enable_attribute_scalar(glsl_component_type, gl_component_type, cpp_component_type);                          \
+	_enable_attribute_scalar(glsl_vec_prefix##vec2, gl_component_type, cpp_component_type);                        \
+	_enable_attribute_scalar(glsl_vec_prefix##vec3, gl_component_type, cpp_component_type);                        \
+	_enable_attribute_scalar(glsl_vec_prefix##vec4, gl_component_type, cpp_component_type);                        \
+	_enable_attribute_vector(2, 2, glsl_vec_prefix, gl_component_type);                                            \
+	_enable_attribute_vector(2, 3, glsl_vec_prefix, gl_component_type);                                            \
+	_enable_attribute_vector(2, 4, glsl_vec_prefix, gl_component_type);                                            \
+	_enable_attribute_vector(3, 3, glsl_vec_prefix, gl_component_type);                                            \
+	_enable_attribute_vector(3, 4, glsl_vec_prefix, gl_component_type);                                            \
+	_enable_attribute_vector(4, 4, glsl_vec_prefix, gl_component_type)
 
-	_enable_attribute_overloads(float, , GLfloat, GL_FLOAT);
-	_enable_attribute_overloads(int, i, GLint, GL_INT);
-	_enable_attribute_overloads(uint, u, GLuint, GL_UNSIGNED_INT);
+	_enable_attribute_overloads(float, , GL_FLOAT, GLfloat);
+	_enable_attribute_overloads(int, i, GL_INT, GLint);
+	_enable_attribute_overloads(uint, u, GL_UNSIGNED_INT, GLuint);
 
 #undef _enable_attribute_overloads
-#undef _enable_attribute
+#undef _enable_attribute_vector
+#undef _enable_attribute_scalar
 
 private:
 	VertexArrayBuilder(GLsizei stride)

@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "common.h"
+#include "transfer_types.h"
 
 namespace gl {
 
@@ -70,12 +71,15 @@ protected:
 			glUniform##component_count##gl_setter_infix##v(location, 1, value);                         \
 		}                                                                                             \
 	}
-#define _matrix_Uniform(matrix_size, row_count, column_count)                                 \
-	Uniform_mat##matrix_size : public Uniform {                                                 \
-		Uniform_mat##matrix_size(char const *name) : Uniform(name, GL_FLOAT_MAT##matrix_size) { } \
-		void operator=(const GLfloat /**/ (&value)[row_count][column_count]) const {              \
-			glUniformMatrix##matrix_size##fv(location, 1, GL_TRUE, *value);                         \
-		}                                                                                         \
+#define _matrix_Uniform(csize, rsize)                                             \
+	Uniform_mat##csize : public Uniform {                                           \
+		Uniform_mat##csize(char const *name) : Uniform(name, GL_FLOAT_MAT##csize) { } \
+		void operator=(const cmat##csize &M) const {                                  \
+			glUniformMatrix##csize##fv(location, 1, GL_FALSE, M.data);                  \
+		}                                                                             \
+		void operator=(const rmat##rsize &M) const {                                  \
+			glUniformMatrix##csize##fv(location, 1, GL_TRUE, M.data);                   \
+		}                                                                             \
 	}
 #define _vector_Attributes_Uniforms(glsl_component_type, glsl_vec_prefix, gl_component_type, gl_setter_infix, cpp_component_type) \
 	struct _Attribute(glsl_component_type, gl_component_type);                                                                      \
@@ -91,15 +95,15 @@ _vector_Attributes_Uniforms(float, , GL_FLOAT, f, GLfloat);
 _vector_Attributes_Uniforms(int, i, GL_INT, i, GLint);
 _vector_Attributes_Uniforms(uint, u, GL_UNSIGNED_INT, ui, GLuint);
 
-struct _matrix_Uniform(2, 2, 2);
-struct _matrix_Uniform(3, 3, 3);
-struct _matrix_Uniform(4, 4, 4);
-struct _matrix_Uniform(2x3, 3, 2);
-struct _matrix_Uniform(3x2, 2, 3);
-struct _matrix_Uniform(2x4, 4, 2);
-struct _matrix_Uniform(4x2, 2, 4);
-struct _matrix_Uniform(3x4, 4, 3);
-struct _matrix_Uniform(4x3, 3, 4);
+struct _matrix_Uniform(2, 2);
+struct _matrix_Uniform(2x3, 3x2);
+struct _matrix_Uniform(2x4, 2x4);
+struct _matrix_Uniform(3, 3);
+struct _matrix_Uniform(3x2, 2x3);
+struct _matrix_Uniform(3x4, 4x3);
+struct _matrix_Uniform(4, 4);
+struct _matrix_Uniform(4x2, 4x2);
+struct _matrix_Uniform(4x3, 3x4);
 
 #undef _vector_Attributes_Uniforms
 #undef _matrix_Uniform
@@ -130,8 +134,8 @@ protected:
 	_Attribute_Uniform_typedef(vec_prefix##vec2);                     \
 	_Attribute_Uniform_typedef(vec_prefix##vec3);                     \
 	_Attribute_Uniform_typedef(vec_prefix##vec4)
-#define _matrix_Uniform_typedef(matrix_size) \
-	_Uniform_typedef(mat##matrix_size)
+#define _matrix_Uniform_typedef(size) \
+	_Uniform_typedef(mat##size)
 
 	_vector_Attribute_Uniform_typedefs(float, );
 	_vector_Attribute_Uniform_typedefs(int, i);

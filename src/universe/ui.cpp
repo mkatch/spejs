@@ -26,6 +26,16 @@ struct SolidVertex {
 	GLfloat normal[3];
 };
 
+template <typename T, GLsizei N>
+inline gl::vec<T, N> v(const T (&v)[N]) {
+	return {v};
+}
+
+template <typename T, GLsizei M, GLsizei N>
+inline gl::rmat<T, M, N> m(const T (&v)[M][N]) {
+	return {*v};
+}
+
 gl::VertexBuffer<SolidVertex> create_cube_vertices();
 
 void UI::event_loop(const RpcServer *rpc_server) {
@@ -58,8 +68,8 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	vertex_buffer.buffer_data(vertices);
 
 	vertex_buffer.bind([&](auto builder, auto base) {
-		builder.enable_attribute(p.position, base->position);
-		builder.enable_attribute(p.color, base->color);
+		builder.enable_attribute(p.position, v(base->position));
+		builder.enable_attribute(p.color, v(base->color));
 	});
 
 	const gl::VertexBuffer<SolidVertex> cube_vertices = create_cube_vertices();
@@ -70,8 +80,8 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	const auto &s = shaders.solid_program;
 
 	cube_vertices.bind([&](auto builder, auto base) {
-		builder.enable_attribute(s.position, base->position);
-		builder.enable_attribute(s.normal, base->normal);
+		builder.enable_attribute(s.position, v(base->position));
+		builder.enable_attribute(s.normal, v(base->normal));
 	});
 
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
@@ -83,18 +93,18 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 		glUseProgram(s.program_id);
 		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
-		s.projection = {
+		s.projection = m<GLfloat, 4, 4>({
 			{1, 0, 0, 0},
 			{0, 1, 0, 0},
 			{0, 0, 1, 0},
 			{0, 0, 0, 1},
-		};
-		s.model = {
+		});
+		s.model = m<GLfloat, 4, 4>({
 			{0.2,   0,   0, 0},
 			{  0, 0.2,   0, 0},
 			{  0,   0, 0.2, 0},
 			{  0,   0,   0, 1},
-		};
+		});
 
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
