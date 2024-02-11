@@ -10,25 +10,41 @@ class VertexArrayBuilder;
 // Wraps an OpenGL buffer object of type GL_ARRAY_BUFFER and offers
 // functionality to help build vertex arrays with it.
 template <typename T>
-struct VertexBuffer {
-	GLuint vertex_buffer_id;
+class VertexBuffer {
+	GLuint _buffer_id;
+	GLsizei _vertex_count;
 
+public:
 	VertexBuffer() {
-		gl_error_guard(glCreateBuffers(1, &vertex_buffer_id));
+		gl_error_guard(glCreateBuffers(1, &_buffer_id));
+	}
+	VertexBuffer(const VertexBuffer &) = delete;
+	VertexBuffer(VertexBuffer &&other) {
+		_buffer_id = other._buffer_id;
+		other._buffer_id = 0;
 	}
 	~VertexBuffer() {
-		glDeleteBuffers(1, &vertex_buffer_id);
+		glDeleteBuffers(1, &_buffer_id);
+	}
+
+	GLuint buffer_id() const { return _buffer_id; }
+
+	GLsizei vertex_count() const { return _vertex_count; }
+
+	void buffer_data(const T *data, GLsizei vertex_count, GLenum usage = GL_STATIC_DRAW) {
+		_vertex_count = vertex_count;
+		glNamedBufferData(_buffer_id, vertex_count * sizeof(T), data, usage);
 	}
 
 	// Uploads fixed-size array data to the buffer.
 	template <size_t N>
 	void buffer_data(const T (&data)[N], GLenum usage = GL_STATIC_DRAW) {
-		glNamedBufferData(vertex_buffer_id, sizeof(data), data, usage);
+		buffer_data(data, sizeof(data) / sizeof(T), usage);
 	}
 
 	// Binds the buffer for building a vertex array.
-	void bind(std::function<void(VertexArrayBuilder, const T *)> build) {
-		glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_id);
+	void bind(std::function<void(VertexArrayBuilder, const T *)> build) const {
+		glBindBuffer(GL_ARRAY_BUFFER, _buffer_id);
 		build(VertexArrayBuilder(sizeof(T)), nullptr);
 	}
 };

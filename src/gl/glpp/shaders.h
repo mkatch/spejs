@@ -32,10 +32,20 @@ struct FragmentShader {
 	GLuint shader_id;
 };
 
+// Describes a uniform of a shader program.
+struct Uniform {
+	GLuint location;
+	const char *name;
+	GLenum data_type;
+
+protected:
+	Uniform(const char *name, GLenum data_type);
+};
+
 // Describes an attribute of a shader program.
 struct Attribute {
-	const char *name;
 	GLuint location;
+	const char *name;
 	GLenum data_type;
 
 protected:
@@ -46,18 +56,27 @@ protected:
 	Attribute_##suffix : public Attribute {                                    \
 		Attribute_##suffix(char const *name) : Attribute(name, gl_data_type) { } \
 	}
-#define _Attribute_structs(scalar_suffix, vec_prefix, gl_component_type) \
-	struct _Attribute(scalar_suffix, gl_component_type);                   \
-	struct _Attribute(vec_prefix##vec2, gl_component_type##_VEC2);         \
-	struct _Attribute(vec_prefix##vec3, gl_component_type##_VEC3);         \
-	struct _Attribute(vec_prefix##vec4, gl_component_type##_VEC4)
+#define _Uniform(suffix, gl_data_type)                                   \
+	Uniform_##suffix : public Uniform {                                    \
+		Uniform_##suffix(char const *name) : Uniform(name, gl_data_type) { } \
+	}
+#define _vector_Attributes_Uniforms(scalar_suffix, vec_prefix, gl_component_type) \
+	struct _Attribute(scalar_suffix, gl_component_type);                            \
+	struct _Attribute(vec_prefix##vec2, gl_component_type##_VEC2);                  \
+	struct _Attribute(vec_prefix##vec3, gl_component_type##_VEC3);                  \
+	struct _Attribute(vec_prefix##vec4, gl_component_type##_VEC4);                  \
+	struct _Uniform(scalar_suffix, gl_component_type);                              \
+	struct _Uniform(vec_prefix##vec2, gl_component_type##_VEC2);                    \
+	struct _Uniform(vec_prefix##vec3, gl_component_type##_VEC3);                    \
+	struct _Uniform(vec_prefix##vec4, gl_component_type##_VEC4)
 
-_Attribute_structs(float, , GL_FLOAT);
-_Attribute_structs(int, i, GL_INT);
-_Attribute_structs(uint, u, GL_UNSIGNED_INT);
-_Attribute_structs(double, d, GL_DOUBLE);
+_vector_Attributes_Uniforms(float, , GL_FLOAT);
+_vector_Attributes_Uniforms(int, i, GL_INT);
+_vector_Attributes_Uniforms(uint, u, GL_UNSIGNED_INT);
+_vector_Attributes_Uniforms(double, d, GL_DOUBLE);
 
-#undef _Attribute_structs
+#undef _vector_Attributes_Uniforms
+#undef _Uniform
 #undef _Attribute
 
 // Wraps an OpenGL shader program object.
@@ -66,22 +85,33 @@ struct Program {
 	const char *name;
 	const VertexShader *vertex_shader;
 	const FragmentShader *fragment_shader;
+	std::vector<const Uniform *> uniforms;
 	std::vector<const Attribute *> attributes;
 
 protected:
 // Convenience aliases, so that the declarations resemble GLSL code.
-#define _Attribute_typedefs(scalar_type, vec_prefix)          \
-	typedef Attribute_##scalar_type in_##scalar_type;           \
-	typedef Attribute_##vec_prefix##vec2 in_##vec_prefix##vec2; \
-	typedef Attribute_##vec_prefix##vec3 in_##vec_prefix##vec3; \
-	typedef Attribute_##vec_prefix##vec4 in_##vec_prefix##vec4
+#define _Attribute_typedef(suffix) \
+	typedef Attribute_##suffix in_##suffix
+#define _Uniform_typedef(suffix) \
+	typedef Uniform_##suffix uniform_##suffix
+#define _Attribute_Uniform_typedef(suffix) \
+	_Attribute_typedef(suffix);              \
+	_Uniform_typedef(suffix)
+#define _vector_Attribute_Uniform_typedefs(scalar_type, vec_prefix) \
+	_Attribute_Uniform_typedef(scalar_type);                          \
+	_Attribute_Uniform_typedef(vec_prefix##vec2);                     \
+	_Attribute_Uniform_typedef(vec_prefix##vec3);                     \
+	_Attribute_Uniform_typedef(vec_prefix##vec4)
 
-	_Attribute_typedefs(float, );
-	_Attribute_typedefs(int, i);
-	_Attribute_typedefs(uint, u);
-	_Attribute_typedefs(double, d);
+	_vector_Attribute_Uniform_typedefs(float, );
+	_vector_Attribute_Uniform_typedefs(int, i);
+	_vector_Attribute_Uniform_typedefs(uint, u);
+	_vector_Attribute_Uniform_typedefs(double, d);
 
-#undef _Attribute_typedefs
+#undef _vector_Attribute_Uniform_typedefs
+#undef _Attribtue_Uniform_typedef
+#undef _Uniform_typedef
+#undef _Attribute_typedef
 
 	Program(const char *name, VertexShaderSource const &vertex_shader_source, FragmentShaderSource const &fragment_shader_source);
 };

@@ -11,7 +11,17 @@ struct Shaders : public gl::Shaders {
 		in_vec4 color = {"color"};
 
 		BasicProgram()
-				: Program("BasicProgram", Src::basic_v, Src::basic_f) {}
+				: Program("BasicProgram", Src::basic_v, Src::basic_f) { }
 	};
 	const BasicProgram basic_program;
+
+	struct SolidProgram : gl::Program {
+		uniform_vec4 color = {"color"};
+		in_vec3 position = {"position"};
+		in_vec3 normal = {"normal"};
+
+		SolidProgram()
+				: Program("SolidProgram", Src::solid_v, Src::solid_f) { }
+	};
+	const SolidProgram solid_program;
 };
