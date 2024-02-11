@@ -32,43 +32,43 @@ enum MatrixOrder {
 //
 // To be used as a transfer data type when passing matrices to OpenGL functions.
 // You should define conversions from your own matrix types.
-template <typename T, GLsizei columns, GLsizei rows, MatrixOrder order>
+template <GLsizei columns, GLsizei rows, MatrixOrder order>
 struct mat {
-	const T *data;
+	const GLfloat *data;
 };
 
 // Represents a matrix with elements of type T in a column-major order.
 //
 // To be used as a transfer data type when passing matrices to OpenGL functions.
 // You should define conversions from your own matrix types.
-template <typename T, GLsizei columns, GLsizei rows>
-using cmat = mat<T, columns, rows, COLUMN_MAJOR>;
+template <GLsizei columns, GLsizei rows>
+using cmat = mat<columns, rows, COLUMN_MAJOR>;
 
 // Represents a matrix with elements of type T in a row-major order.
 //
 // To be used as a transfer data type when passing matrices to OpenGL functions.
 // You should define conversions from your own matrix types.
-template <typename T, GLsizei rows, GLsizei columns>
-using rmat = mat<T, columns, rows, ROW_MAJOR>;
+template <GLsizei rows, GLsizei columns>
+using rmat = mat<columns, rows, ROW_MAJOR>;
 
-typedef cmat<GLfloat, 2, 2> cmat2;
-typedef cmat<GLfloat, 2, 3> cmat2x3;
-typedef cmat<GLfloat, 2, 4> cmat2x4;
-typedef cmat<GLfloat, 3, 2> cmat3x2;
-typedef cmat<GLfloat, 3, 3> cmat3;
-typedef cmat<GLfloat, 3, 4> cmat3x4;
-typedef cmat<GLfloat, 4, 2> cmat4x2;
-typedef cmat<GLfloat, 4, 3> cmat4x3;
-typedef cmat<GLfloat, 4, 4> cmat4;
+typedef cmat<2, 2> cmat2;
+typedef cmat<2, 3> cmat2x3;
+typedef cmat<2, 4> cmat2x4;
+typedef cmat<3, 2> cmat3x2;
+typedef cmat<3, 3> cmat3;
+typedef cmat<3, 4> cmat3x4;
+typedef cmat<4, 2> cmat4x2;
+typedef cmat<4, 3> cmat4x3;
+typedef cmat<4, 4> cmat4;
 
-typedef rmat<GLfloat, 2, 2> rmat2;
-typedef rmat<GLfloat, 2, 3> rmat2x3;
-typedef rmat<GLfloat, 2, 4> rmat2x4;
-typedef rmat<GLfloat, 3, 2> rmat3x2;
-typedef rmat<GLfloat, 3, 3> rmat3;
-typedef rmat<GLfloat, 3, 4> rmat3x4;
-typedef rmat<GLfloat, 4, 2> rmat4x2;
-typedef rmat<GLfloat, 4, 3> rmat4x3;
-typedef rmat<GLfloat, 4, 4> rmat4;
+typedef rmat<2, 2> rmat2;
+typedef rmat<2, 3> rmat2x3;
+typedef rmat<2, 4> rmat2x4;
+typedef rmat<3, 2> rmat3x2;
+typedef rmat<3, 3> rmat3;
+typedef rmat<3, 4> rmat3x4;
+typedef rmat<4, 2> rmat4x2;
+typedef rmat<4, 3> rmat4x3;
+typedef rmat<4, 4> rmat4;
 
 }  // namespace gl

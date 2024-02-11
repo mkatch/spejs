@@ -31,8 +31,8 @@ inline gl::vec<T, N> v(const T (&v)[N]) {
 	return {v};
 }
 
-template <typename T, GLsizei M, GLsizei N>
-inline gl::rmat<T, M, N> m(const T (&v)[M][N]) {
+template <GLsizei M, GLsizei N>
+inline gl::rmat<M, N> m(const GLfloat (&v)[M][N]) {
 	return {*v};
 }
 
@@ -93,13 +93,13 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 		glUseProgram(s.program_id);
 		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
-		s.projection = m<GLfloat, 4, 4>({
+		s.projection = m({
 			{1, 0, 0, 0},
 			{0, 1, 0, 0},
 			{0, 0, 1, 0},
 			{0, 0, 0, 1},
 		});
-		s.model = m<GLfloat, 4, 4>({
+		s.model = m({
 			{0.2,   0,   0, 0},
 			{  0, 0.2,   0, 0},
 			{  0,   0, 0.2, 0},
