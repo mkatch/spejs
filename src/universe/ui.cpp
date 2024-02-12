@@ -1,11 +1,13 @@
 #include <glpp/gl.h>
-// GLFW must be after OpenGL
+#include <glm/glm.hpp>
 
 #include "rpc.h"
 #include "shaders.h"
 #include "ui.h"
 
+// GLFW must be after OpenGL
 #include <GLFW/glfw3.h>
+
 UI::UI() {
 	if (!glfwInit()) {
 		throw std::runtime_error("Failed to initialize GLFW");
@@ -17,24 +19,14 @@ UI::~UI() {
 }
 
 struct BasicVertex {
-	GLfloat position[2];
-	GLfloat color[3];
+	glm::vec2 position;
+	glm::vec3 color;
 };
 
 struct SolidVertex {
-	GLfloat position[3];
-	GLfloat normal[3];
+	glm::vec3 position;
+	glm::vec3 normal;
 };
-
-template <typename T, GLsizei N>
-inline gl::vec<T, N> v(const T (&v)[N]) {
-	return {v};
-}
-
-template <GLsizei M, GLsizei N>
-inline gl::rmat<M, N> m(const GLfloat (&v)[M][N]) {
-	return {*v};
-}
 
 gl::VertexBuffer<SolidVertex> create_cube_vertices();
 
@@ -68,8 +60,8 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	vertex_buffer.buffer_data(vertices);
 
 	vertex_buffer.bind([&](auto builder, auto base) {
-		builder.enable_attribute(p.position, v(base->position));
-		builder.enable_attribute(p.color, v(base->color));
+		builder.enable_attribute(p.position, base->position);
+		builder.enable_attribute(p.color, base->color);
 	});
 
 	const gl::VertexBuffer<SolidVertex> cube_vertices = create_cube_vertices();
@@ -80,8 +72,8 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	const auto &s = shaders.solid_program;
 
 	cube_vertices.bind([&](auto builder, auto base) {
-		builder.enable_attribute(s.position, v(base->position));
-		builder.enable_attribute(s.normal, v(base->normal));
+		builder.enable_attribute(s.position, base->position);
+		builder.enable_attribute(s.normal, base->normal);
 	});
 
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
@@ -93,18 +85,18 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 		glUseProgram(s.program_id);
 		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
-		s.projection = m({
+		s.projection = {
 			{1, 0, 0, 0},
 			{0, 1, 0, 0},
 			{0, 0, 1, 0},
 			{0, 0, 0, 1},
-		});
-		s.model = m({
+		};
+		s.model = {
 			{0.2,   0,   0, 0},
 			{  0, 0.2,   0, 0},
 			{  0,   0, 0.2, 0},
 			{  0,   0,   0, 1},
-		});
+		};
 
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
@@ -116,7 +108,7 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 gl::VertexBuffer<SolidVertex> create_cube_vertices() {
 	std::vector<SolidVertex> vertices;
-	auto tagv = [](int tag, GLfloat(&v)[3]) -> void {
+	auto tagv = [](int tag, glm::vec3 &v) -> void {
 		v[0] = (tag & 4) ? 1.0f : -1.0f;
 		v[1] = (tag & 2) ? 1.0f : -1.0f;
 		v[2] = (tag & 1) ? 1.0f : -1.0f;

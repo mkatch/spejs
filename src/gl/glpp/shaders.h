@@ -1,9 +1,9 @@
 #pragma once
 
+#include <glm/glm.hpp>
 #include <vector>
 
 #include "common.h"
-#include "transfer_types.h"
 
 namespace gl {
 
@@ -74,11 +74,8 @@ protected:
 #define _matrix_Uniform(csize, rsize)                                             \
 	Uniform_mat##csize : public Uniform {                                           \
 		Uniform_mat##csize(char const *name) : Uniform(name, GL_FLOAT_MAT##csize) { } \
-		void operator=(const cmat##csize &M) const {                                  \
-			glUniformMatrix##csize##fv(location, 1, GL_FALSE, M.data);                  \
-		}                                                                             \
-		void operator=(const rmat##rsize &M) const {                                  \
-			glUniformMatrix##csize##fv(location, 1, GL_TRUE, M.data);                   \
+		void operator=(const glm::mat##csize &M) const {                              \
+			glUniformMatrix##csize##fv(location, 1, GL_FALSE, (const GLfloat *)&M);     \
 		}                                                                             \
 	}
 #define _vector_Attributes_Uniforms(glsl_component_type, glsl_vec_prefix, gl_component_type, gl_setter_infix, cpp_component_type) \

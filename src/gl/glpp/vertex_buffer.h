@@ -1,10 +1,10 @@
 #pragma once
 
 #include <functional>
-#include "common.h"
+#include <glm/glm.hpp>
 
+#include "common.h"
 #include "shaders.h"
-#include "transfer_types.h"
 
 namespace gl {
 
@@ -63,9 +63,9 @@ public:
 	void enable_attribute(const Attribute_##glsl_type &attribute, const cpp_component_type &value) { \
 		enable_attribute(attribute.location, 1, gl_component_type, &value);                            \
 	}
-#define _enable_attribute_vector(value_size, attribute_size, glsl_vec_prefix, gl_component_type)                                            \
-	void enable_attribute(const Attribute_##glsl_vec_prefix##vec##attribute_size &attribute, const glsl_vec_prefix##vec##value_size &value) { \
-		enable_attribute(attribute.location, value_size, gl_component_type, value.data);                                                        \
+#define _enable_attribute_vector(value_size, attribute_size, glsl_vec_prefix, gl_component_type)                                                 \
+	void enable_attribute(const Attribute_##glsl_vec_prefix##vec##attribute_size &attribute, const glm::glsl_vec_prefix##vec##value_size &value) { \
+		enable_attribute(attribute.location, value_size, gl_component_type, &value);                                                                 \
 	}
 #define _enable_attribute_overloads(glsl_component_type, glsl_vec_prefix, gl_component_type, cpp_component_type) \
 	_enable_attribute_scalar(glsl_component_type, gl_component_type, cpp_component_type);                          \

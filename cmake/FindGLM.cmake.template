@@ -1,0 +1,6 @@
+cmake_path(SET GLM_INSTALL_DIR "C:/Users/mkacz/Library/glm/install")
+cmake_path(SET GLM_INCLUDE_DIR "${GLM_INSTALL_DIR}/include")
+add_library(glm STATIC IMPORTED)
+set_target_properties(glm PROPERTIES
+  IMPORTED_LOCATION "${GLM_INSTALL_DIR}/lib/glm.lib"
+)
