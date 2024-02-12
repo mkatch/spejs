@@ -1,4 +1,6 @@
 #include <glpp/gl.h>
+#define GLM_ENABLE_EXPERIMENTAL 1
+#include <glm/ext.hpp>
 #include <glm/glm.hpp>
 
 #include "rpc.h"
@@ -70,14 +72,22 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	glBindVertexArray(cube_vertex_array);
 
 	const auto &s = shaders.solid_program;
+	glUseProgram(s.program_id);
+	s.projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+	glm::mat4 m = glm::identity<glm::mat4>();
+	m = glm::translate(m, {0, 0, -10});
+	std::cout << glm::to_string(m) << std::endl;
+	s.model = m;
 
 	cube_vertices.bind([&](auto builder, auto base) {
 		builder.enable_attribute(s.position, base->position);
 		builder.enable_attribute(s.normal, base->normal);
 	});
 
+	glEnable(GL_CULL_FACE);
+
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		gl_error_guard(glUseProgram(shaders.basic_program.program_id));
 		glBindVertexArray(vertex_array);
@@ -85,18 +95,7 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 		glUseProgram(s.program_id);
 		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
-		s.projection = {
-			{1, 0, 0, 0},
-			{0, 1, 0, 0},
-			{0, 0, 1, 0},
-			{0, 0, 0, 1},
-		};
-		s.model = {
-			{0.2,   0,   0, 0},
-			{  0, 0.2,   0, 0},
-			{  0,   0, 0.2, 0},
-			{  0,   0,   0, 1},
-		};
+		s.model = m * glm::eulerAngleYXZ((float)glfwGetTime() * 2.0f, (float)glfwGetTime() * 3.0f, 0.0f);
 
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
@@ -129,11 +128,11 @@ gl::VertexBuffer<SolidVertex> create_cube_vertices() {
 	};
 	const int ux = 0b100, uy = 0b010, uz = 0b001;
 	push_face(0b000, +uz, +uy, ~ux);
-	push_face(0b111, -uz, -uy, +ux);
+	push_face(0b111, -uy, -uz, +ux);
 	push_face(0b000, +ux, +uz, ~uy);
-	push_face(0b111, -ux, -uz, +uy);
+	push_face(0b111, -uz, -ux, +uy);
 	push_face(0b000, +uy, +ux, ~uz);
-	push_face(0b111, -uy, -ux, +uz);
+	push_face(0b111, -ux, -uy, +uz);
 	gl::VertexBuffer<SolidVertex> vertex_buffer;
 	vertex_buffer.buffer_data(vertices.data(), vertices.size());
 	return vertex_buffer;
