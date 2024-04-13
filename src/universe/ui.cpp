@@ -73,11 +73,15 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 	const auto &s = shaders.solid_program;
 	glUseProgram(s.program_id);
-	s.projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+	s.Projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 	glm::mat4 m = glm::identity<glm::mat4>();
 	m = glm::translate(m, {0, 0, -10});
 	std::cout << glm::to_string(m) << std::endl;
-	s.model = m;
+	s.ambient_color = {0.2, 0.2, 0.2};
+	s.light0_color = {0.9, 0.9, 0.3};
+	s.light0_position = {-5, 5, 0};
+	s.light1_color = {0.4, 0.4, 0.8};
+	s.light1_position = {10, -10, -5};
 
 	cube_vertices.bind([&](auto builder, auto base) {
 		builder.enable_attribute(s.position, base->position);
@@ -94,8 +98,10 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glUseProgram(s.program_id);
-		s.color = {1.0f, 1.0f, 1.0f, 1.0f};
-		s.model = m * glm::eulerAngleYXZ((float)glfwGetTime() * 2.0f, (float)glfwGetTime() * 3.0f, 0.0f);
+		s.color = {1.0f, 0.8f, 0.8f, 1.0f};
+		glm::mat4 Model = m * glm::eulerAngleYXZ((float)glfwGetTime() * 2.0f, (float)glfwGetTime() * 3.0f, 0.0f);
+		s.Model = Model;
+		s.Normal_model = glm::inverseTranspose(glm::mat3(Model));
 
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
@@ -107,32 +113,26 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 gl::VertexBuffer<SolidVertex> create_cube_vertices() {
 	std::vector<SolidVertex> vertices;
-	auto tagv = [](int tag, glm::vec3 &v) -> void {
-		v[0] = (tag & 4) ? 1.0f : -1.0f;
-		v[1] = (tag & 2) ? 1.0f : -1.0f;
-		v[2] = (tag & 1) ? 1.0f : -1.0f;
+	auto push_face = [&](const glm::vec3 &p, const glm::vec3 &ux, const glm::vec3 &uy) {
+		const glm::vec3 n = glm::cross(ux, uy);
+		vertices.push_back({p, n});
+		vertices.push_back({p + ux, n});
+		vertices.push_back({p + ux + uy, n});
+		vertices.push_back({p, n});
+		vertices.push_back({p + ux + uy, n});
+		vertices.push_back({p + uy, n});
 	};
-	auto push_vertex = [&](int p, int n) -> void {
-		SolidVertex v;
-		tagv(p, v.position);
-		tagv(n, v.normal);
-		vertices.push_back(v);
-	};
-	auto push_face = [&](int p, int ux, int uy, int n) {
-		push_vertex(p, n);
-		push_vertex(p + ux, n);
-		push_vertex(p + ux + uy, n);
-		push_vertex(p, n);
-		push_vertex(p + ux + uy, n);
-		push_vertex(p + uy, n);
-	};
-	const int ux = 0b100, uy = 0b010, uz = 0b001;
-	push_face(0b000, +uz, +uy, ~ux);
-	push_face(0b111, -uy, -uz, +ux);
-	push_face(0b000, +ux, +uz, ~uy);
-	push_face(0b111, -uz, -ux, +uy);
-	push_face(0b000, +uy, +ux, ~uz);
-	push_face(0b111, -ux, -uy, +uz);
+	const glm::vec3 v0 = {-1, -1, -1};
+	const glm::vec3 v1 = {1, 1, 1};
+	const glm::vec3 ux = {2, 0, 0};
+	const glm::vec3 uy = {0, 2, 0};
+	const glm::vec3 uz = {0, 0, 2};
+	push_face(v0, +uz, +uy);
+	push_face(v1, -uy, -uz);
+	push_face(v0, +ux, +uz);
+	push_face(v1, -uz, -ux);
+	push_face(v0, +uy, +ux);
+	push_face(v1, -ux, -uy);
 	gl::VertexBuffer<SolidVertex> vertex_buffer;
 	vertex_buffer.buffer_data(vertices.data(), vertices.size());
 	return vertex_buffer;

@@ -16,9 +16,17 @@ struct Shaders : public gl::Shaders {
 	const BasicProgram basic_program;
 
 	struct SolidProgram : gl::Program {
-		uniform_mat4 projection = {"projection"};
-		uniform_mat4 model = {"model"};
+		uniform_mat4 Projection = {"Projection"};
+		uniform_mat4 Model = {"Model"};
+		uniform_mat3 Normal_model = {"_Normal_model"};
 		uniform_vec4 color = {"color"};
+
+		uniform_vec3 ambient_color = {"ambient_color"};
+		uniform_vec3 light0_position = {"light0_position"};
+		uniform_vec3 light0_color = {"light0_color"};
+		uniform_vec3 light1_position = {"light1_position"};
+		uniform_vec3 light1_color = {"light1_color"};
+
 		in_vec3 position = {"position"};
 		in_vec3 normal = {"normal"};
 
