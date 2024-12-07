@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 var (
@@ -15,6 +16,18 @@ var (
 )
 
 func main() {
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			fmt.Printf("stdin: %s\n", scanner.Text())
+		}
+	}()
+
+	for {
+		<-time.After(time.Second * 5)
+		fmt.Println("Still running...")
+	}
+
 	flag.Parse()
 
 	_, err := os.Stat("go.work")
