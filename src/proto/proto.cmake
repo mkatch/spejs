@@ -4,7 +4,7 @@ cmake_path(SET CPP_OUT_DIR "${PKG_BUILD_DIR}")
 cmake_path(SET GRPC_OUT_DIR "${CPP_OUT_DIR}")
 cmake_path(SET GO_OUT_DIR "${PKG_BUILD_DIR}/go")
 cmake_path(SET GO_GRPC_OUT_DIR "${GO_OUT_DIR}")
-cmake_path(SET JS_OUT_DIR "${JS_BUILD_DIR}/${REL_PKG_BUILD_DIR}")
+cmake_path(SET JS_OUT_DIR "${PKG_BUILD_DIR}")
 cmake_path(SET GRPC_WEB_OUT_DIR "${PKG_BUILD_DIR}")
 
 set(STAMPS "")
@@ -30,12 +30,13 @@ foreach (FILE ${PROTO_SRCS})
     OUTPUT ${CPP_OUT} ${STAMP}
     COMMAND ${PROTOC}
       --proto_path="${PKG_SRC_DIR}"
-      --plugin=protoc-gen-grpc="${PROTOC_GRPC_CPP_PLUGIN}"
+      --plugin=protoc-gen-grpc="${PROTOC_GEN_GRPC_CPP_PLUGIN}"
+      --plugin=protoc-gen-js="${PROTOC_GEN_JS_PLUGIN}"
       --cpp_out="${CPP_OUT_DIR}"
       --grpc_out="${GRPC_OUT_DIR}"
       --go_out=paths=source_relative:"${GO_OUT_DIR}"
       --go-grpc_out=paths=source_relative:"${GO_GRPC_OUT_DIR}"
-      --js_out=import_style=commonjs:"${JS_OUT_DIR}"
+      --js_out=import_style=es6:"${JS_OUT_DIR}"
       --grpc-web_out=import_style=typescript,mode=grpcwebtext:"${GRPC_WEB_OUT_DIR}"
       "${FILE}"
     COMMAND ${CMAKE_COMMAND} -E touch "${STAMP}"

@@ -1,8 +1,11 @@
-SET(GRPC_INSTALL_PREFIX "C:/Users/mkacz/Library/grpc/install")
+SET(GRPC_INSTALL_PREFIX "C:/path/to/grpc/install")
+SET(PROTOC_GEN_JS_PLUGIN "C:/path/to/protoc-gen-js.exe")
+
 SET(GRPC_BIN_DIR "${GRPC_INSTALL_PREFIX}/bin")
 SET(PROTOC "${GRPC_BIN_DIR}/protoc.exe")
-SET(PROTOC_GRPC_CPP_PLUGIN "${GRPC_BIN_DIR}/grpc_cpp_plugin.exe")
+SET(PROTOC_GEN_GRPC_CPP_PLUGIN "${GRPC_BIN_DIR}/grpc_cpp_plugin.exe")
 SET(GRPC_INCLUDE_DIR "${GRPC_INSTALL_PREFIX}/include")
+
 SET(GRPC_LIBS
   absl_bad_any_cast_impl
   absl_bad_optional_access

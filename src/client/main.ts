@@ -1,20 +1,20 @@
 import * as foo from './foo';
-import * as empty_pb from 'proto/empty_pb';
-import { JobServiceClient } from 'proto/JobServiceClientPb';
-import * as universe_pb from 'proto/universe_pb';
-import { UniverseServiceClient } from 'proto/UniverseServiceClientPb';
+import { Empty } from '@proto/empty_pb';
+import { JobServiceClient } from '@proto/JobServiceClientPb';
+import { OpticalSampleRequest } from '@proto/universe_pb';
+import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
 import { Matrix3, Matrix4 } from 'three';
 
 let name: string = 'World';
 foo.sayHello(name);
 const client = new JobServiceClient('/rpc')
-client.status(new empty_pb.Empty(), {}, (err, resp) => {
+client.status(new Empty(), {}, (err, resp) => {
   console.log("err: ", err)
   console.log("resp: ", resp.toObject())
 });
 console.log(client)
-console.log(empty_pb.Empty)
+console.log(Empty)
 
 function main() {
   document.body.innerHTML = `
@@ -38,7 +38,7 @@ function main() {
       return;
     }
 
-    const request = new universe_pb.OpticalSampleRequest();
+    const request = new OpticalSampleRequest();
     request.setX(coords[0]!);
     request.setY(coords[1]!);
     try {
