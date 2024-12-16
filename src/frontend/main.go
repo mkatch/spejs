@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -19,11 +20,13 @@ import (
 // doesn't seem like a good idea. Maybe we should have some kind of install
 // build step that copies files to one directory?
 var (
-	webPort      = flag.Int("web-port", 8000, "The port to server web content")
-	indexTmpl    = flag.String("index-tmpl", "missing", "Path to the app .html file")
-	indexJs      = flag.String("index-js", "missing", "Path to the app .js bundle")
-	grpcPort     = flag.Int("grpc-port", 8001, "The port to serve gRPC requests")
-	universePort = flag.Int("universe-port", 8100, "The port of the universe server")
+	clientRedirect = flag.String("client-redirect", "", "Redirect for the client app request. Useful when running a separate dev client (Vite)")
+	webPort        = flag.Int("web-port", 8000, "The port to serve web content")
+	indexTmpl      = flag.String("index-tmpl", "missing", "Path to the app .html file")
+	indexJs        = flag.String("index-js", "missing", "Path to the app .js bundle")
+	grpcPort       = flag.Int("grpc-port", 6100, "The port to serve gRPC requests")
+	grpcwebPort    = flag.Int("grpcweb-port", 6101, "The port to serve gRPC-Web requests")
+	universePort   = flag.Int("universe-port", 8100, "The port of the universe server")
 )
 
 func main() {
@@ -42,6 +45,12 @@ func mainWithError() error {
 		return fmt.Errorf("unable to listen on the gRPC port: %w", err)
 	}
 	defer grpcLis.Close()
+
+	grpcwebLis, err := net.Listen("tcp4", fmt.Sprintf(":%d", *grpcwebPort))
+	if err != nil {
+		return fmt.Errorf("unable to listen on the gRPC-Web port: %w", err)
+	}
+	defer grpcwebLis.Close()
 
 	webLis, err := net.Listen("tcp4", fmt.Sprintf(":%d", *webPort))
 	if err != nil {
@@ -71,18 +80,19 @@ func mainWithError() error {
 		wg.Done()
 	}()
 
-	grpcwebServer := grpcweb.WrapServer(
-		grpcServer,
-		grpcweb.WithAllowNonRootResource(true),
-	)
-
 	router := gin.Default()
-	router.LoadHTMLFiles(*indexTmpl)
-	router.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.tmpl", gin.H{})
-	})
-	router.StaticFile("/index.js", *indexJs)
-	router.POST("/rpc/*method", gin.WrapH(grpcwebServer))
+	if *clientRedirect != "" {
+		router.GET("/", func(c *gin.Context) {
+			c.Redirect(http.StatusMovedPermanently, *clientRedirect)
+		})
+	} else {
+		router.LoadHTMLFiles(*indexTmpl)
+		router.GET("/", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "index.tmpl", gin.H{})
+		})
+		router.StaticFile("/index.js", *indexJs)
+	}
+	// router.POST("/rpc/*method", gin.WrapH(grpcwebServer))
 	webServer := &http.Server{Handler: router}
 
 	log.Println("Starting web server on ", webLis.Addr())
@@ -95,9 +105,31 @@ func mainWithError() error {
 		wg.Done()
 	}()
 
+	allowedGrpcwebOrigins := []string{
+		"http://localhost:5173",
+		"http://localhost:8000",
+	}
+	grpcwebServer := &http.Server{Handler: grpcweb.WrapServer(
+		grpcServer,
+		grpcweb.WithOriginFunc(func(origin string) bool {
+			return slices.Contains(allowedGrpcwebOrigins, origin)
+		}),
+		// grpcweb.WithCorsForRegisteredEndpointsOnly(false),
+	)}
+	log.Println("Starting gRPC-Web server on ", grpcwebLis.Addr())
+	wg.Add(1)
+	go func() {
+		err := grpcwebServer.Serve(grpcwebLis)
+		if err != http.ErrServerClosed {
+			log.Println("Failed to serve gRPC-Web:", err)
+		}
+		wg.Done()
+	}()
+
 	go func() {
 		jobServiceServer.WaitForQuit()
 		grpcServer.GracefulStop()
+		grpcwebServer.Shutdown(context.Background())
 		webServer.Shutdown(context.Background())
 	}()
 

@@ -40,6 +40,10 @@ func (s *UniverseServiceServerImpl) OpticalSample(c context.Context, req *pb.Opt
 	return s.backend.OpticalSample(c, req)
 }
 
+func (s *UniverseServiceServerImpl) Ping(c context.Context, req *pb.PingRequest) (*pb.PingResponse, error) {
+	return &pb.PingResponse{Message: "Go!"}, nil
+}
+
 func (s *UniverseServiceServerImpl) PingBackend() {
 	c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -1,7 +1,7 @@
 import * as foo from './foo';
 import { Empty } from '@proto/empty_pb';
 import { JobServiceClient } from '@proto/JobServiceClientPb';
-import { OpticalSampleRequest } from '@proto/universe_pb';
+import { OpticalSampleRequest, PingRequest } from '@proto/universe_pb';
 import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
 import { Matrix3, Matrix4 } from 'three';
@@ -20,16 +20,27 @@ function main() {
   document.body.innerHTML = `
       <h1>Spejs</h1>
   
+      <button id="ping-button">Ping</button>
       <label for="coords-input">Coordinates:</label>
       <input type="text" id="coords-input">
   
       <button id="look-button">Look</button>
     `;
-
+  const pingButton = document.getElementById('ping-button') as HTMLButtonElement;
   const coordsInput = document.getElementById('coords-input') as HTMLInputElement;
   const lookButton = document.getElementById('look-button') as HTMLButtonElement;
 
-  const universeService = new UniverseServiceClient('/rpc');
+  const universeService = new UniverseServiceClient(`http://${window.location.hostname}:6101`, undefined,);
+
+  pingButton.addEventListener('click', async () => {
+    try {
+      const request = new PingRequest();
+      const response = await universeService.ping(request);
+      console.log(response);
+    } catch (e) {
+      console.error('===ERROR: ', e)
+    }
+  });
 
   lookButton.addEventListener('click', async () => {
     const coords = coordsInput.value.split(',').map(s => parseInt(s));
@@ -131,18 +142,18 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
       uniform mat3 camera;
       attribute vec2 position;
       varying vec3 envCoords;
-      void main() {
-        envCoords = camera * vec3(position, 1.0);
-        gl_Position = vec4(position, 0.0, 1.0);
-      }
-    `,
+  void main() {
+    envCoords = camera * vec3(position, 1.0);
+    gl_Position = vec4(position, 0.0, 1.0);
+  }
+  `,
     fragmentShader: `
       uniform samplerCube envMap;
       varying highp vec3 envCoords;
-      void main() {
-        gl_FragColor = textureCube(envMap, envCoords);
-      }
-    `,
+  void main() {
+    gl_FragColor = textureCube(envMap, envCoords);
+  }
+  `,
     depthTest: false,
     depthWrite: false,
   });
