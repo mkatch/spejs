@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 		absl::ParseCommandLine(argc, argv);
 		string port_string = absl::GetFlag(FLAGS_port);
 
-		RpcServer rpc_server;
+		RpcServer rpc_server(argc, argv);
 		rpc_server.start("localhost:" + port_string);
 		cout << "Listening on port " << rpc_server.port() << endl;
 

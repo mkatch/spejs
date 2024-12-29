@@ -17,7 +17,7 @@ add_custom_target(
   DEPENDS
     ${LAUNCHER_EXE}
     frontend_server
-    client
+    # client
     universe_server
 )
 

@@ -16,6 +16,19 @@
 			"detail": "CMake template build task"
 		},
 		{
+			"label": "Build proto (CMake)",
+			"type": "cmake",
+			"command": "build",
+			"targets": [
+				"proto_generate"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		},
+		{
 			"label": "Run launcher",
 			"type": "shell",
 			"command": "./build/launcher/launcher",
@@ -45,6 +58,28 @@
 				"Build universe_server (CMake)"
 			],
 			"problemMatcher": []
-		}
+		},
+		{
+			"label": "Build frontend_server (CMake)",
+			"type": "cmake",
+			"command": "build",
+			"targets": [
+				"frontend_server"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Run frontend_server",
+			"type": "shell",
+			"command": "./build/frontend/frontend_server",
+			"dependsOn": [
+				"Build frontend_server (CMake)"
+			],
+			"problemMatcher": []
+		},
 	]
 }

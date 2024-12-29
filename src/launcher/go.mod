@@ -1,6 +1,6 @@
 module github.com/mkacz91/spejs/launcher
 
-go 1.21.5
+go 1.23.4
 
 replace github.com/mkacz91/spejs/pb => ../../build/proto/go
 

@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"slices"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -26,11 +25,12 @@ var (
 	indexJs        = flag.String("index-js", "missing", "Path to the app .js bundle")
 	grpcPort       = flag.Int("grpc-port", 6100, "The port to serve gRPC requests")
 	grpcwebPort    = flag.Int("grpcweb-port", 6101, "The port to serve gRPC-Web requests")
-	universePort   = flag.Int("universe-port", 8100, "The port of the universe server")
+	universeAddr   = flag.String("universe-addr", "", "The address of the universe server")
 )
 
 func main() {
 	flag.Parse()
+
 	err := mainWithError()
 	if err != nil {
 		log.Fatal(err)
@@ -60,7 +60,7 @@ func mainWithError() error {
 
 	grpcServer := grpc.NewServer()
 
-	universeServiceServer, err := NewUniverseServiceServer(fmt.Sprintf(":%d", *universePort))
+	universeServiceServer, err := NewUniverseServiceServer(*universeAddr)
 	if err != nil {
 		return fmt.Errorf("unable to create UniverseService server: %w", err)
 	}
@@ -105,16 +105,11 @@ func mainWithError() error {
 		wg.Done()
 	}()
 
-	allowedGrpcwebOrigins := []string{
-		"http://localhost:5173",
-		"http://localhost:8000",
-	}
 	grpcwebServer := &http.Server{Handler: grpcweb.WrapServer(
 		grpcServer,
 		grpcweb.WithOriginFunc(func(origin string) bool {
-			return slices.Contains(allowedGrpcwebOrigins, origin)
+			return true
 		}),
-		// grpcweb.WithCorsForRegisteredEndpointsOnly(false),
 	)}
 	log.Println("Starting gRPC-Web server on ", grpcwebLis.Addr())
 	wg.Add(1)

@@ -3,7 +3,10 @@
 #include <grpcpp/grpcpp.h>
 #include <iostream>
 
-void RpcServer::start(const std::string &addr) {
+RpcServer::RpcServer(int argc, char **argv)
+		: job_service(argc, argv) { }
+
+void RpcServer::start(const string &addr) {
 	grpc::ServerBuilder builder;
 	builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &_port);
 	builder.RegisterService(&job_service);

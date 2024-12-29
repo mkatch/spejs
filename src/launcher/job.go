@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
+	"runtime"
+	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/mkacz91/spejs/pb"
@@ -16,301 +17,354 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// Job represents a process that implements a service.
-//
-// It can be used started and stopped multiple times, each time spawning a new
-// process, but only one process is allowed at a time.
-type Job struct {
-	mut     sync.Mutex
-	name    string
-	path    string
-	args    []string
-	port    int
-	logFile *os.File
-	log     *log.Logger
-	run     *jobRun
+type JobSpec struct {
+	Name     string
+	Color    int
+	Command  string
+	Args     []string
+	GrpcPort int
 }
 
-// jobRun is a part of Job that is reset each time a new process is started.
-//
-// The Job can be started and stopped multiple times, but a single run has
-// a strict lifecycle and must be disposed of after stopping.
-type jobRun struct {
-	cmd         *exec.Cmd
-	cmdEnded    chan struct{}
-	port        int
-	conn        func() (*grpc.ClientConn, error)
-	service     func() (pb.JobServiceClient, error)
-	waitReady   func() error
-	cancelReady context.CancelFunc
-	waitCmd     func() error
-	waitCalled  bool
-	stopOnce    sync.Once
-	log         *log.Logger
+type JobAttachState int
+
+const (
+	JobAttachNone JobAttachState = iota
+	JobAttachOk
+	JobAttachWarning
+	JobAttachError
+)
+
+type JobStatus int
+
+const (
+	JobStatusUnknown JobStatus = iota
+	JobStatusReady
+	JobStatusWarning
+	JobStatusError
+)
+
+type job struct {
+	name                  string
+	color                 int
+	path                  string
+	args                  []string
+	port                  int
+	log                   logger
+	conn                  *grpc.ClientConn
+	service               pb.JobServiceClient
+	process               *os.Process
+	exitState             *atomic.Pointer[jobExitState]
+	exited                chan bool
+	status                *pb.JobStatusResponse
+	lastStatusRefreshTime time.Time
+	warnings              []error
+	errors                []error
 }
 
-// NewJob creates a new Job from the given command.
-//
-// Does not start the command. To start the command, call Start.
-func NewJob(path string, portKey string, port int, arg ...string) *Job {
-	return &Job{
-		name: filepath.Base(path),
-		path: path,
-		args: append(arg, fmt.Sprintf("%s=%d", portKey, port)),
-		port: port,
-	}
+type jobExitState struct {
+	processState *os.ProcessState
+	error        error
 }
 
-// Name returns the human readable name of the job.
-func (job *Job) Name() string {
-	return job.name
-}
-
-// LogFileName returns the name of the file where the job's output is logged.
-func (job *Job) LogFileName() string {
-	return job.logFile.Name()
-}
-
-// Start starts a new process running the job's command.
-//
-// Returns immediately after starting the command. If successful, initiates
-// a readines check in the provided context c, but that happens asynchronously.
-// To wait for the job to be ready, call WaitReady.
-//
-// The job can be started and stopped multiple times, but only one active
-// process is allowed at a time, and each call to Start needs a corresponding
-// Wait before the job can be started again. The process may exit out of its own
-// accord or be requested stop using Stop.
-func (job *Job) Start(c context.Context) error {
-	job.mut.Lock()
-	defer job.mut.Unlock()
-	if job.run != nil {
-		return fmt.Errorf("job already/still running")
-	}
-
-	if job.logFile == nil {
-		logFile, err := os.CreateTemp("", "spejs_"+job.name+"_OUT_")
-		if err != nil {
-			return fmt.Errorf("unable to create log file: %w", err)
-		}
-		job.logFile = logFile
-		job.log = log.New(logFile, "[launcher] ", log.Ltime|log.Lmsgprefix)
-	}
-
-	cmd := exec.Command(job.path, job.args...)
-	cmd.Stdout = job.logFile
-	cmd.Stderr = job.logFile
-	job.log.Println("Starting command:")
-	job.log.Println("  ", cmd)
-	err := cmd.Start()
+func (job *job) init() error {
+	path, err := filepath.Abs(job.path)
 	if err != nil {
-		job.log.Println(err)
 		return err
 	}
-	job.log.Println("Command started, PID", cmd.Process.Pid)
-
-	run := &jobRun{
-		cmd:  cmd,
-		port: job.port,
-		log:  job.log,
-	}
-
-	run.conn = sync.OnceValues(func() (*grpc.ClientConn, error) { return conn(run) })
-	run.service = sync.OnceValues(func() (pb.JobServiceClient, error) { return service(run) })
-
-	readyContext, cancelReady := context.WithCancel(c)
-	run.waitReady = sync.OnceValue(func() error { return waitReady(run, readyContext) })
-	run.cancelReady = cancelReady
-	go run.waitReady()
-
-	run.waitCmd = sync.OnceValue(func() error { return waitCmd(run) })
-	run.cmdEnded = make(chan struct{})
-	go run.waitCmd()
-
-	job.run = run
+	job.path = path
+	job.log = log.withPrefix(fmt.Sprintf("[\033[38;5;%dm%8s\033[0m] ", job.color, job.name))
 	return nil
 }
 
-// WaitReady waits for the job to be ready.
-//
-// This method does not initiate the readiness check, as it is alredy done in
-// Start, it merely waits for it to complete.
-//
-// Returns error if the job is not running or the readiness could not be
-// confirmed before the context ended.
-func (job *Job) WaitReady() error {
-	run, err := job.currentRun()
-	if err != nil {
-		return err
-	}
-	return run.waitReady()
+func (job *job) command() string {
+	return job.path + " " + strings.Join(job.args, " ")
 }
 
-// Wait waits for the current process to exit and cleans up resources.
-//
-// Each successful Start needs a corresponding Wait before the job can be
-// started again. Wait can be called only once for a process.
-//
-// Returns an error if the job has not been started, the process exited
-// abnormally, or there was a prolem with resource cleanup. In either case, the
-// process should not be running.
-func (job *Job) Wait() error {
-	job.mut.Lock()
-	defer job.mut.Unlock()
+func (job *job) appendError(err error) error {
+	job.errors = append(job.errors, err)
+	return err
+}
 
-	if job.run == nil {
-		return fmt.Errorf("job not started")
+func (job *job) logAppendErrorf(format string, a ...any) error {
+	return job.appendError(job.log.Errorf(format, a...))
+}
+
+func (job *job) clearErrorsAndWarnings() {
+	job.errors = nil
+	job.warnings = nil
+}
+
+func (job *job) describe() {
+	var b strings.Builder
+	b.WriteString("\n\n")
+	if job.process == nil {
+		b.WriteString("    Status: not attached\n")
+	} else {
+		if job.status == nil {
+			b.WriteString("    Status: attached, unknown\n")
+		} else if job.status.IsReady {
+			b.WriteString("    Status: attached, ready\n")
+		} else {
+			b.WriteString("    Status: attached, not read\n")
+		}
+		b.WriteString(fmt.Sprintf("    PID:    %d\n", job.process.Pid))
 	}
-	if job.run.waitCalled {
-		// Technically, we could allow multiple calls but it is extremely error
-		// prone. In concurrent code, even two immediately succeeding calls
-		// to Wait may refer to different processes, because the job could have
-		// been started and stopped an arbitrary number of times in between.
-		return fmt.Errorf("Wait already called")
+	b.WriteString(fmt.Sprintf("    Port:   %d\n", job.port))
+	b.WriteString(fmt.Sprintf("    Command: %s\n", job.command()))
+	for _, warn := range job.warnings {
+		b.WriteString(fmt.Sprintf("    %s\n", formatWarningLog(warn)))
+	}
+	for _, err := range job.errors {
+		b.WriteString(fmt.Sprintf("    %s\n", formatErrorLog(err)))
+	}
+	b.WriteString("\n")
+	job.log.Print(b.String())
+}
+
+func (job *job) summary() string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("\033[38;5;%dm%s\033[0m", job.color, job.name))
+	if len(job.warnings) > 0 {
+		b.WriteString("*")
+	}
+	b.WriteString(" ")
+	if len(job.errors) > 0 {
+		b.WriteString("\033[38;5;1mX\033[0m")
+	} else if job.status == nil {
+		b.WriteString("\033[38;5;244m?\033[0m")
+	} else if job.status.IsReady {
+		b.WriteString("\033[38;5;2mO\033[0m")
+	} else {
+		b.WriteString("\033[38;5;3mN\033[0m")
+	}
+	return b.String()
+}
+
+func (job *job) attach(attemptCount int) (err error) {
+	if job.process != nil {
+		job.log.Print("Job already attached.")
+		return nil
 	}
 
-	job.mut.Unlock()
 	defer func() {
-		job.mut.Lock()
-		job.run = nil
+		if err != nil {
+			job.stopIfRunningAndDetach()
+		}
 	}()
 
-	return job.run.waitCmd()
+	req := &pb.Empty{}
+	var rsp *pb.JobAttachResponse
+	dialTarget := fmt.Sprintf("localhost:%d", job.port)
+	credentials := insecure.NewCredentials()
+	for attempt := 0; rsp == nil && attempt < attemptCount; attempt++ {
+		if attempt > 0 {
+			time.Sleep(1 * time.Second)
+		}
+		if job.conn == nil {
+			job.conn, err = grpc.Dial(dialTarget, grpc.WithTransportCredentials(credentials))
+			if err == nil {
+				job.service = pb.NewJobServiceClient(job.conn)
+			}
+		}
+		if job.service != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			rsp, err = job.service.Attach(ctx, req)
+			cancel()
+		}
+		if err != nil && attemptCount > 1 {
+			job.log.Printf("Attach RPC attempt %d (out of %d) failed: %v", attempt, attemptCount, err)
+		}
+	}
+
+	if err != nil {
+		return
+	}
+
+	if rsp.Command != job.command() {
+		warn := job.log.Warningf("command different than expected:\n%s", rsp.Command)
+		job.warnings = append(job.warnings, warn)
+	}
+
+	job.process, err = findProcess(int(rsp.Pid))
+	if err != nil {
+		return fmt.Errorf("can't find process: %w", err)
+	}
+
+	exitState := &atomic.Pointer[jobExitState]{}
+	exited := make(chan bool)
+	job.exitState = exitState
+	job.exited = exited
+	go func() {
+		state, err := job.process.Wait()
+		exitState.Store(&jobExitState{processState: state, error: err})
+		exited <- true
+		close(exited)
+	}()
+
+	job.log.Printf("Process attached. PID: %d", rsp.Pid)
+	job.refreshStatus()
+	return
 }
 
-// Stops requests the current process to stop gracefully.
-//
-// The request happens asynchornously in the provided context c. This method
-// returns immediately and does not wait for the process to stop. Fails only if
-// the job is not running. To wait for the process to stop, call Wait, which
-// will also report if the process ended abnormally.
-//
-// If the process does not terminate before the context ends, it will be
-// forcefully killed with a SIGKILL.
-//
-// Subsequent calls are allowed and have no effect.
-func (job *Job) Stop(c context.Context) error {
-	run, err := job.currentRun()
-	if err != nil {
-		return err
+func (job *job) attachOrStart() error {
+	if job.process != nil {
+		job.log.Print("Job already attached")
+		return nil
 	}
-	run.stopOnce.Do(func() { go stop(run, c) })
+
+	job.clearErrorsAndWarnings()
+	job.log.Print("Trying to attach to an already running job...")
+	err := job.attach(1)
+	if err == nil {
+		return nil
+	}
+
+	job.log.Printf("Unable to attach to an already running job: %v.", err)
+	job.clearErrorsAndWarnings()
+
+	// Windows specific:
+	wtArgs := append([]string{
+		"--window=0",
+		"new-tab",
+		fmt.Sprintf("--title=%s", job.name),
+		job.path,
+	},
+		job.args...,
+	)
+	cmd := exec.Command("wt", wtArgs...)
+
+	job.log.Printf("Starting job...\n%s", strings.Join(cmd.Args, " "))
+	err = cmd.Start()
+	if err != nil {
+		return job.logAppendErrorf("starting job: %w", err)
+	}
+
+	time.Sleep(1 * time.Second)
+	job.log.Print("Job started. Attaching...")
+	err = job.attach(5)
+	if err != nil {
+		return job.logAppendErrorf("attach: %w", err)
+	}
+
 	return nil
 }
 
-func (job *Job) currentRun() (*jobRun, error) {
-	job.mut.Lock()
-	defer job.mut.Unlock()
-	if job.run == nil {
-		return nil, fmt.Errorf("job not running")
-	} else {
-		return job.run, nil
+func (job *job) stopIfRunningAndDetach() {
+	if job.process != nil && job.exitState.Load() == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		job.log.Print("Sending Quit request to gracefully stop the job...")
+		_, err := job.service.Quit(ctx, &pb.Empty{})
+		if err != nil {
+			job.logAppendErrorf("quit: %w", err)
+		} else {
+			job.log.Print("Quit request accepted. Waiting for the process to terminate...")
+			select {
+			case <-ctx.Done():
+				job.log.Print("Timed out waiting for process to terminate.")
+				break
+			case <-job.exited:
+				break
+			}
+		}
+
+		if job.exitState.Load() == nil {
+			job.log.Print("Forcefully quitting with SIGKILL and waiting for it to terminate...")
+			err = job.process.Signal(os.Kill)
+			if err != nil {
+				job.logAppendErrorf("SIGKILL: %w", err)
+			} else {
+				select {
+				case <-time.After(5 * time.Second):
+					job.log.Print("Timed out waiting for process to terminate.")
+					break
+				case <-job.exited:
+					break
+				}
+			}
+		}
+
+		exitState := job.exitState.Load()
+		if exitState != nil {
+			ps := exitState.processState
+			if ps != nil {
+				job.log.Printf("Process PID %d exited with %d.", ps.Pid(), ps.ExitCode())
+			}
+			err := exitState.error
+			if err != nil {
+				job.logAppendErrorf("process wait: %w", err)
+			}
+		} else {
+			job.logAppendErrorf("coudn't terminate process; abadonned")
+		}
 	}
+	job.process = nil
+
+	if job.conn != nil {
+		err := job.conn.Close()
+		if err != nil {
+			job.logAppendErrorf("close connection: %w", err)
+		}
+		job.conn = nil
+	}
+
+	job.service = nil
+	job.warnings = nil
+	job.exitState = nil
+	job.exited = nil
+	job.status = nil
 }
 
-func conn(run *jobRun) (*grpc.ClientConn, error) {
-	dialTarget := fmt.Sprintf("localhost:%d", run.port)
-	run.log.Println("Dialing gRPC endpoint ", dialTarget)
-	conn, err := grpc.Dial(
-		dialTarget,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+func (job *job) stop() error {
+	if job.process == nil {
+		return fmt.Errorf("job not attached")
+	}
+	job.stopIfRunningAndDetach()
+	return nil
+}
+
+func (job *job) refreshStatus() {
+	if job.process == nil {
+		return
+	}
+
+	if job.exitState.Load() != nil {
+		job.stopIfRunningAndDetach()
+		job.logAppendErrorf("process exited unexpectedly")
+		return
+	}
+
+	shouldRefresh :=
+		job.status == nil || !job.status.IsReady ||
+			time.Since(job.lastStatusRefreshTime) > 20*time.Second
+	if !shouldRefresh {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	status, err := job.service.Status(ctx, &pb.Empty{})
+
 	if err != nil {
-		run.log.Println("Unable to connect to gRPC endpoint:", err)
+		job.status = nil
+		job.log.Errorf("status: %w", err)
+	} else {
+		job.status = status
+		job.lastStatusRefreshTime = time.Now()
 	}
-	return conn, err
 }
 
-func service(run *jobRun) (pb.JobServiceClient, error) {
-	conn, err := run.conn()
+func findProcess(pid int) (*os.Process, error) {
+	process, err := os.FindProcess(pid)
+	if err == nil && runtime.GOOS != "windows" {
+		// On Unix systems, `FindProcess` always returns a process handle and to
+		// really check if the process exists, you need to send a signal.
+		err = process.Signal(syscall.Signal(0))
+	}
 	if err != nil {
 		return nil, err
-	}
-	return pb.NewJobServiceClient(conn), nil
-}
-
-func waitReady(run *jobRun, c context.Context) error {
-	service, err := run.service()
-	if err != nil {
-		return err
-	}
-	defer run.cancelReady()
-
-	attemptCount := 0
-	for {
-		time.Sleep(1 * time.Second)
-		attemptCount++
-		run.log.Println("Querying readiness. Attempt", attemptCount)
-		rsp, err := service.Status(c, &pb.Empty{})
-		if err != nil {
-			run.log.Println("Readiness query failed:", err)
-			if c.Err() != nil {
-				return err
-			}
-		} else if !rsp.IsReady {
-			run.log.Println("Job responded not ready")
-		} else {
-			run.log.Println("Job responded ready")
-			return nil
-		}
-	}
-}
-
-func waitCmd(run *jobRun) error {
-	errs := make([]error, 0, 2)
-	appendErr := func(err error) {
-		run.log.Println(err)
-		errs = append(errs, err)
-	}
-
-	err := run.cmd.Wait()
-	if err != nil {
-		appendErr(fmt.Errorf("command: %w", err))
-	}
-	run.log.Println("Job exited with", run.cmd.ProcessState.ExitCode())
-
-	close(run.cmdEnded)
-	run.cancelReady()
-
-	conn, _ := run.conn()
-	if conn != nil {
-		err = conn.Close()
-		if err != nil {
-			appendErr(fmt.Errorf("close gRPC connection: %w", err))
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
-func stop(run *jobRun, c context.Context) {
-	run.log.Println("Stopping job...")
-
-	service, err := run.service()
-	if err != nil {
-		run.log.Println("Cannot gracefully stop the job because dialing the service failed:", err)
 	} else {
-		run.log.Print("Sending JobService.Quit RPC to gracefully stop the job...")
-		_, err := service.Quit(c, &pb.Empty{})
-		if err != nil {
-			run.log.Println("JobService.Quit RPC failed:", err)
-		} else {
-			run.log.Println("JobService.Quit RPC succeeded. Waiting for the process to terminate...")
-			select {
-			case <-run.cmdEnded:
-				return
-			case <-c.Done():
-				run.log.Println("Process still running despite accepting the Quit RPC, and the context ended with:", c.Err())
-			}
-		}
-	}
-
-	run.log.Print("Forcefully quitting process with a SIGKILL.")
-	err = run.cmd.Process.Signal(os.Kill)
-	if err != nil {
-		// This should actually never happen, unless the process already died,
-		// right? Log and forget for now, but consider propagating to Wait if there
-		// is ever a need.
-		run.log.Println("Unable to send SIGKILL:", err)
+		return process, nil
 	}
 }

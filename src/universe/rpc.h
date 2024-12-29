@@ -14,9 +14,10 @@ class RpcServer {
 	std::atomic<bool> _is_running = true;
 
 public:
+	RpcServer(int argc, char **argv);
 	~RpcServer();
 
-	void start(const std::string &addr);
+	void start(const string &addr);
 
 	int port() const { return _port; }
 

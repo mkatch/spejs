@@ -1,122 +1,210 @@
 package main
 
 import (
-	"context"
-	"flag"
+	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
-var (
-	statusTimeout = flag.Duration("status-timeout", 10*time.Second, "The timeout after which the launcher should stop trying to confirm that the RPC server has started or stopped.")
-)
-
-type Launcher struct {
-	jobs         []*Job
-	cancelStart  context.CancelFunc
-	wg           sync.WaitGroup
-	startStopMut sync.Mutex
-	stopOnce     sync.Once
+type launcher struct {
+	jobs                  []*job
+	allJobIndices         []int
+	lastStatus            string
+	lastStatusRefreshTime time.Time
 }
 
-func NewLauncher(jobs []*Job) *Launcher {
-	return &Launcher{
-		jobs: jobs,
-	}
-}
-
-func (l *Launcher) StartAll() error {
-	l.startStopMut.Lock()
-	defer l.startStopMut.Unlock()
-	if l.cancelStart != nil {
-		return fmt.Errorf("already started")
-	}
-	startContext, cancelStart := context.WithCancel(context.Background())
-	l.cancelStart = cancelStart
-	defer cancelStart()
-	l.wg.Add(1)
-
-	fmt.Println("")
-	fmt.Println("=== Starting jobs ")
-	fmt.Println("")
-
-	for _, job := range l.jobs {
-		if startContext.Err() != nil {
-			// Breaking here should not make a logical difference, as the callers are
-			// still responsible for cleaning up all running jobs. This just expedites
-			// the process of shutting down by not starting jobs destined for failure.
-			return startContext.Err()
-		}
-		c, cancel := context.WithTimeout(startContext, *statusTimeout)
-		defer cancel()
-
-		fmt.Print("Starting ", job.Name(), " ... ")
-		err := printOperationResult(job.Start(c))
+func (l *launcher) repl() error {
+	for i, job := range l.jobs {
+		err := job.init()
 		if err != nil {
 			return err
 		}
-		fmt.Println("Logging to", job.LogFileName())
+		l.allJobIndices = append(l.allJobIndices, i)
+	}
 
-		l.wg.Add(1)
-		go func() {
-			defer l.wg.Done()
-			job.Wait()
-		}()
+	l.attachOrStart(l.allJobIndices...)
+	l.describeAll()
 
-		fmt.Print("Waiting for ", job.Name(), " to be ready ... ")
-		err = printOperationResult(job.WaitReady())
-		if err != nil {
-			return err
+	line := make(chan string)
+	go func() {
+		lines := bufio.NewScanner(os.Stdin)
+		for lines.Scan() {
+			line <- lines.Text()
+		}
+	}()
+
+	l.printStatus()
+
+repl:
+	for {
+		select {
+		case line := <-line:
+			if l.userCommand(line) {
+				break repl
+			} else {
+				l.lastStatusRefreshTime = time.Time{}
+			}
+		case <-time.After(5 * time.Second):
+			l.printStatus()
 		}
 	}
 
 	return nil
 }
 
-func (l *Launcher) StopAll() error {
-	if l.cancelStart == nil {
-		return fmt.Errorf("not started")
+func (l *launcher) userCommand(line string) (quit bool) {
+	quit = false
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return
 	}
-	l.stopOnce.Do(func() {
-		l.cancelStart()
-		l.startStopMut.Lock()
-		defer l.startStopMut.Unlock()
-		c, cancel := context.WithTimeout(context.Background(), *statusTimeout)
-		defer cancel()
+	switch fields[0] {
+	case "h":
+		log.Print(`
 
-		for _, job := range l.jobs {
-			fmt.Print("Asking ", job.Name(), " to stop ... ")
-			printOperationResult(job.Stop(c))
+    h          Show this help message.
+    q          Quit all jobs and exit.
+    d          Describe all jobs.
+    d <index>  Describe job with the given index.
+
+`)
+		return
+	case "q":
+		if len(fields) == 1 {
+			l.stopAll()
+			return true
 		}
-
-		for _, job := range l.jobs {
-			fmt.Print("Waiting for ", job.Name(), " to stop ... ")
-			printOperationResult(job.Wait())
+	case "d":
+		if len(fields) == 1 {
+			l.describeAll()
+			return
+		} else if len(fields) == 2 {
+			if i, err := strconv.ParseInt(fields[1], 0, 0); err == nil {
+				if err = l.describe(int(i)); err == nil {
+					return
+				}
+			}
 		}
-
-		l.wg.Done()
-	})
-	return nil
+	}
+	log.Print("Unknown command. Type 'h' for help.")
+	return
 }
 
-func (l *Launcher) Wait() {
-	l.wg.Wait()
+func (l *launcher) printStatus() {
+	l.eachJobParallel(func(job *job) error {
+		job.refreshStatus()
+		return nil
+	}, l.allJobIndices...)
+
+	var parts []string
+	for i, job := range l.jobs {
+		part := job.summary()
+		parts = append(parts, fmt.Sprintf("%d: %s", i, part))
+	}
+
+	status := strings.Join(parts, ", ")
+	if status != l.lastStatus || time.Since(l.lastStatusRefreshTime) > 1*time.Minute {
+		l.lastStatus = status
+		l.lastStatusRefreshTime = time.Now()
+		log.Print(status)
+	}
 }
 
-const (
-	opOK   = "\033[32mOK\033[0m"
-	opFAIL = "\033[31mFAIL\033[0m"
-)
-
-func printOperationResult(err error) error {
-	if err != nil {
-		fmt.Println(opFAIL)
-		fmt.Println(" ", err)
+func (l *launcher) job(i int) (*job, error) {
+	if i < 0 || len(l.jobs) <= i {
+		return nil, fmt.Errorf("invalid job index: %d", i)
 	} else {
-		fmt.Println(opOK)
+		return l.jobs[i], nil
 	}
-	os.Stdout.Sync()
-	return err
+}
+
+func (l *launcher) eachJob(fn func(job *job) error, indices ...int) error {
+	var errs []error
+	for _, i := range indices {
+		job, err := l.job(i)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		err = fn(job)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (l *launcher) eachJobParallel(fn func(job *job) error, indices ...int) error {
+	var errs []error
+	var mut sync.Mutex
+	appendErr := func(err error) {
+		mut.Lock()
+		defer mut.Unlock()
+		errs = append(errs, err)
+	}
+
+	var wg sync.WaitGroup
+
+	for i := range indices {
+		job, err := l.job(i)
+		if err != nil {
+			appendErr(err)
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			err := fn(job)
+			if err != nil {
+				appendErr(err)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	return errors.Join(errs...)
+}
+
+func (l *launcher) describe(indices ...int) error {
+	return l.eachJob(func(job *job) error {
+		job.describe()
+		return nil
+	}, indices...)
+}
+
+func (l *launcher) describeAll() error {
+	return l.describe(l.allJobIndices...)
+}
+
+func focusThisTerminalTab() {
+	cmd := exec.Command("wt", "--window=0", "focus-tab", "--target=0")
+	err := cmd.Start()
+	if err != nil {
+		log.Printf("focus %v", err)
+	}
+}
+
+func (l *launcher) attachOrStart(indices ...int) (err error) {
+	err = l.eachJobParallel(func(job *job) error {
+		return job.attachOrStart()
+	}, indices...)
+	focusThisTerminalTab()
+	return
+}
+
+func (l *launcher) stop(indices ...int) error {
+	return l.eachJobParallel(func(job *job) error {
+		return job.stop()
+	}, indices...)
+}
+
+func (l *launcher) stopAll() error {
+	return l.stop(l.allJobIndices...)
 }
