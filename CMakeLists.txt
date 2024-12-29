@@ -26,11 +26,13 @@ find_package(Glad REQUIRED)
 find_package(GLFW REQUIRED)
 find_package(gRPC REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(QOI REQUIRED)
 
 include_directories(
   ${GLM_INCLUDE_DIR}
   ${GLFW_INCLUDE_DIR}
   ${GRPC_INCLUDE_DIR}
+  ${QOI_INCLUDE_DIR}
   ${SRC_DIR}
   ${BUILD_DIR}
 )

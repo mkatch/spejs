@@ -1,4 +1,6 @@
 #include <glpp/gl.h>
+#include <qoi.h>
+
 #define GLM_ENABLE_EXPERIMENTAL 1
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
@@ -17,6 +19,9 @@ UI::UI() {
 }
 
 UI::~UI() {
+	if (pixels) {
+		delete[] pixels;
+	}
 	glfwTerminate();
 }
 
@@ -32,11 +37,22 @@ struct SolidVertex {
 
 gl::VertexBuffer<SolidVertex> create_cube_vertices();
 
+UI *ui(GLFWwindow *window) {
+	return static_cast<UI *>(glfwGetWindowUserPointer(window));
+}
+
 void UI::event_loop(const RpcServer *rpc_server) {
-	GLFWwindow *window = glfwCreateWindow(800, 600, "Universe server", nullptr, nullptr);
+	if (window) {
+		throw std::runtime_error("Event loop already running");
+	}
+
+	const int width = 800;
+	const int height = 600;
+	window = glfwCreateWindow(width, height, "Universe server", nullptr, nullptr);
 	if (!window) {
 		throw std::exception("Failed to create GLFW window");
 	}
+
 	glfwMakeContextCurrent(window);
 
 	if (!gladLoadGL(glfwGetProcAddress)) {
@@ -90,6 +106,13 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 	glEnable(GL_CULL_FACE);
 
+	glfwSetWindowUserPointer(window, this);
+	glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+		ui(window)->on_key(key, scancode, action, mods);
+	});
+
+	pixels = new uint8_t[width * height * 3];
+
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -106,8 +129,24 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
 
+		if (save_next_frame) {
+			save_next_frame = false;
+			glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+			qoi_desc desc = {width, height, 3, QOI_SRGB};
+			qoi_write("frame.qoi", pixels, &desc);
+		}
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+	}
+}
+
+void UI::on_key(int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+	} else if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+		save_next_frame = true;
+		std::cout << "Saving next frame" << std::endl;
 	}
 }
 
