@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 cmake_path(SET ROOT_DIR ${CMAKE_SOURCE_DIR})
 cmake_path(SET CMAKE_MODULE_PATH "${ROOT_DIR}/cmake")
-cmake_path(SET SRC_DIR "${ROOT_DIR}/src")
 cmake_path(SET TSCONFIG_JSON "${ROOT_DIR}/tsconfig.json")
 
 cmake_path(SET BUILD_DIR ${CMAKE_BINARY_DIR})
@@ -33,16 +32,16 @@ include_directories(
   ${GLFW_INCLUDE_DIR}
   ${GRPC_INCLUDE_DIR}
   ${QOI_INCLUDE_DIR}
-  ${SRC_DIR}
+  ${ROOT_DIR}
   ${BUILD_DIR}
 )
 
 include(ts.cmake)
 
 function(include_pkg REL_PKG_CMAKE)
-  cmake_path(SET PKG_CMAKE "${SRC_DIR}/${REL_PKG_CMAKE}")
+  cmake_path(SET PKG_CMAKE "${ROOT_DIR}/${REL_PKG_CMAKE}")
   cmake_path(GET REL_PKG_CMAKE PARENT_PATH REL_PKG_DIR)
-  cmake_path(SET PKG_SRC_DIR "${SRC_DIR}/${REL_PKG_DIR}")
+  cmake_path(SET PKG_SRC_DIR "${ROOT_DIR}/${REL_PKG_DIR}")
   cmake_path(GET PKG_CMAKE STEM PKG_NAME)
   cmake_path(SET PKG_BUILD_DIR "${BUILD_DIR}/${REL_PKG_DIR}")
   cmake_path(SET REL_PKG_BUILD_DIR "${REL_BUILD_DIR}/${REL_PKG_DIR}")

@@ -2,7 +2,7 @@ go 1.23.4
 
 use (
 	./build/proto/go
-	./src/frontend
-	./src/launcher
-	./src/gl/shader_bundler
+	./frontend
+	./launcher
+	./gl/shader_bundler
 )

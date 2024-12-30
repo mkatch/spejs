@@ -2,7 +2,7 @@ module github.com/mkacz91/spejs/frontend
 
 go 1.21.5
 
-replace github.com/mkacz91/spejs/pb => ../../build/proto/go
+replace github.com/mkacz91/spejs/pb => ../build/proto/go
 
 require (
 	github.com/gin-gonic/gin v1.10.0
