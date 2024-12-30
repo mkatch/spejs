@@ -1,10 +1,26 @@
 import * as foo from './foo';
 import { Empty } from '@proto/empty_pb';
 import { JobServiceClient } from '@proto/JobServiceClientPb';
-import { OpticalSampleRequest, PingRequest } from '@proto/universe_pb';
+import { OpticalSampleRequest, PingRequest, SkyboxRequest } from '@proto/universe_pb';
 import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
 import { Matrix3, Matrix4 } from 'three';
+import * as QOI from 'qoijs';
+
+declare namespace QOI {
+  function decode(
+    arrayBuffer: ArrayBuffer,
+    byteOffset?: number,
+    byteLength?: number,
+    outputChannels?: number
+  ): {
+    channels: number,
+    data: Uint8Array,
+    width: number,
+    height: number,
+    colorspace: number,
+  }
+}
 
 let name: string = 'World';
 foo.sayHello(name);
@@ -16,7 +32,7 @@ client.status(new Empty(), {}, (err, resp) => {
 console.log(client)
 console.log(Empty)
 
-function main() {
+async function main() {
   document.body.innerHTML = `
       <h1>Spejs</h1>
   
@@ -60,6 +76,28 @@ function main() {
     }
   });
 
+
+  let env: THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> | undefined //= createEnvMesh();
+  universeService.skybox(new SkyboxRequest()).then(async (rsp) => {
+    console.log(rsp.toObject())
+    const frsp = await fetch(`http://localhost:8000/static/${rsp.getAssetId()}`)
+    const d = await frsp.arrayBuffer()
+    const q = QOI.decode(d, undefined, undefined, 4)
+    console.log(q.width, q.height, q.width * q.height * 4, q.data.length)
+    const t = new THREE.DataTexture(q.data, q.width, q.height, THREE.RGBAFormat)
+    t.generateMipmaps = true
+    t.needsUpdate = true
+    skyboxTexture = t
+    env = createEnvMesh()
+    scene.add(env)
+    // TEST_CUBE_MAP.images[0] = t
+    // if (skyboxMaterial) {
+    //   skyboxMaterial.needsUpdate = true
+    //   console.log('written')
+    //   console.log(t)
+    // }
+  })
+
   const width = 800, height = 600;
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
@@ -73,14 +111,17 @@ function main() {
   );
 
   const scene = new THREE.Scene();
-  const env = createEnvMesh();
-  scene.add(env);
+  // const env = createEnvMesh();
+  // scene.add(env);
 
   renderer.domElement.addEventListener('mousemove', e => {
     const r = (e.target as HTMLElement).getBoundingClientRect();
     const mx = e.offsetX / r.width;
     const my = e.offsetY / r.height;
 
+    if (!env) {
+      return
+    }
     (env.material.uniforms.camera!.value as Matrix3)
       .setFromMatrix4(new Matrix4().makeRotationFromEuler(new THREE.Euler(
         (my - 0.5) * Math.PI,
@@ -120,8 +161,10 @@ const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
     c.fillText(text!, faceSize / 2, faceSize / 2);
     return c.canvas.toDataURL();
   });
-  return new THREE.CubeTextureLoader().load(faces);
+  return new THREE.CubeTextureLoader().load(faces)
 })();
+
+let skyboxTexture: THREE.Texture | undefined
 
 function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> {
   const geometry = new THREE.BufferGeometry()
@@ -137,6 +180,7 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
     uniforms: {
       camera: { value: new Matrix3() },
       envMap: { value: TEST_CUBE_MAP },
+      skyboxTexture: { value: skyboxTexture }
     },
     vertexShader: `
       uniform mat3 camera;
@@ -149,9 +193,11 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
   `,
     fragmentShader: `
       uniform samplerCube envMap;
+      uniform sampler2D skyboxTexture;
       varying highp vec3 envCoords;
   void main() {
-    gl_FragColor = textureCube(envMap, envCoords);
+    lowp vec4 t = texture2D(skyboxTexture, envCoords.xy);
+    gl_FragColor = vec4(t.xyz, 1.0);
   }
   `,
     depthTest: false,

@@ -1,1 +1,1 @@
-cmake_path(SET QOI_INCLUDE_DIR "C:/Users/mkacz/Library/qoi")
+cmake_path(SET QOI_INCLUDE_DIR "C:/path/to/qoi")

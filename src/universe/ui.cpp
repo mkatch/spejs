@@ -7,12 +7,14 @@
 
 #include "rpc.h"
 #include "shaders.h"
+#include "tasks.h"
 #include "ui.h"
 
 // GLFW must be after OpenGL
 #include <GLFW/glfw3.h>
 
-UI::UI() {
+UI::UI(TaskQueue &tasks)
+		: tasks(tasks) {
 	if (!glfwInit()) {
 		throw std::runtime_error("Failed to initialize GLFW");
 	}
@@ -129,12 +131,7 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		glBindVertexArray(cube_vertex_array);
 		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
 
-		if (save_next_frame) {
-			save_next_frame = false;
-			glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-			qoi_desc desc = {width, height, 3, QOI_SRGB};
-			qoi_write("frame.qoi", pixels, &desc);
-		}
+		process_tasks();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
@@ -144,10 +141,25 @@ void UI::event_loop(const RpcServer *rpc_server) {
 void UI::on_key(int key, int scancode, int action, int mods) {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
-	} else if (key == GLFW_KEY_P && action == GLFW_PRESS) {
-		save_next_frame = true;
-		std::cout << "Saving next frame" << std::endl;
 	}
+}
+
+void UI::process_tasks() {
+	Task task;
+	if (tasks.pop(task)) {
+		switch (task.index()) {
+			case 1:
+				return process_task(std::get<1>(task));
+		}
+	}
+}
+
+void UI::process_task(const SkyboxTask &task) {
+	int width, height;
+	glfwGetWindowSize(window, &width, &height);
+	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+	qoi_desc desc = {(unsigned int)width, (unsigned int)height, 3, QOI_LINEAR};
+	qoi_write(task.asset_id.c_str(), pixels, &desc);
 }
 
 gl::VertexBuffer<SolidVertex> create_cube_vertices() {

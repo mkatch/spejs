@@ -7,8 +7,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/mkacz91/spejs/pb"
@@ -81,6 +83,10 @@ func mainWithError() error {
 	}()
 
 	router := gin.Default()
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	router.Use(cors.New(corsConfig))
+
 	if *clientRedirect != "" {
 		router.GET("/", func(c *gin.Context) {
 			c.Redirect(http.StatusMovedPermanently, *clientRedirect)
@@ -91,6 +97,9 @@ func mainWithError() error {
 			c.HTML(http.StatusOK, "index.tmpl", gin.H{})
 		})
 		router.StaticFile("/index.js", *indexJs)
+	}
+	if wd, err := os.Getwd(); err == nil {
+		router.Static("/static", wd)
 	}
 	// router.POST("/rpc/*method", gin.WrapH(grpcwebServer))
 	webServer := &http.Server{Handler: router}

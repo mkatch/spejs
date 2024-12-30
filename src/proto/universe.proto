@@ -5,6 +5,7 @@ option go_package = "github.com/mkacz91/spejs/pb";
 service UniverseService {
   rpc Ping (PingRequest) returns (PingResponse) {}
   rpc OpticalSample (OpticalSampleRequest) returns (OpticalSampleResponse) {}
+  rpc Skybox (SkyboxRequest) returns (SkyboxResponse) {}
 }
 
 message PingRequest {
@@ -24,4 +25,11 @@ message OpticalSampleResponse {
   uint32 width = 1;
   uint32 height = 2;
   bytes pixels = 3;
+}
+
+message SkyboxRequest {
+}
+
+message SkyboxResponse {
+  string asset_id = 1;
 }

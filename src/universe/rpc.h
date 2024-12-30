@@ -14,7 +14,7 @@ class RpcServer {
 	std::atomic<bool> _is_running = true;
 
 public:
-	RpcServer(int argc, char **argv);
+	RpcServer(int argc, char **argv, TaskQueue &tasks);
 	~RpcServer();
 
 	void start(const string &addr);

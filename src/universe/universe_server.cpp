@@ -8,6 +8,7 @@
 #include "common.h"
 
 #include "rpc.h"
+#include "tasks.h"
 #include "ui.h"
 
 using std::cout, std::endl;
@@ -20,11 +21,13 @@ int main(int argc, char **argv) {
 		absl::ParseCommandLine(argc, argv);
 		string port_string = absl::GetFlag(FLAGS_port);
 
-		RpcServer rpc_server(argc, argv);
+		TaskQueue tasks;
+
+		RpcServer rpc_server(argc, argv, tasks);
 		rpc_server.start("localhost:" + port_string);
 		cout << "Listening on port " << rpc_server.port() << endl;
 
-		UI ui;
+		UI ui(tasks);
 		ui.event_loop(&rpc_server);
 	} catch (std::exception &e) {
 		cout << e.what() << endl;

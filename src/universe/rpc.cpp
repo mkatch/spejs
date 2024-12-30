@@ -3,8 +3,8 @@
 #include <grpcpp/grpcpp.h>
 #include <iostream>
 
-RpcServer::RpcServer(int argc, char **argv)
-		: job_service(argc, argv) { }
+RpcServer::RpcServer(int argc, char **argv, TaskQueue &tasks)
+		: job_service(argc, argv), universe_service(tasks) { }
 
 void RpcServer::start(const string &addr) {
 	grpc::ServerBuilder builder;

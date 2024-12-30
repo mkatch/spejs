@@ -44,6 +44,10 @@ func (s *UniverseServiceServerImpl) Ping(c context.Context, req *pb.PingRequest)
 	return &pb.PingResponse{Message: "Go!"}, nil
 }
 
+func (s *UniverseServiceServerImpl) Skybox(ctx context.Context, req *pb.SkyboxRequest) (*pb.SkyboxResponse, error) {
+	return s.backend.Skybox(ctx, req)
+}
+
 func (s *UniverseServiceServerImpl) PingBackend() {
 	c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
