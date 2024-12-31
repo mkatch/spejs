@@ -5,22 +5,7 @@ import { OpticalSampleRequest, PingRequest, SkyboxRequest } from '@proto/univers
 import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
 import { Matrix3, Matrix4 } from 'three';
-import * as QOI from 'qoijs';
-
-declare namespace QOI {
-  function decode(
-    arrayBuffer: ArrayBuffer,
-    byteOffset?: number,
-    byteLength?: number,
-    outputChannels?: number
-  ): {
-    channels: number,
-    data: Uint8Array,
-    width: number,
-    height: number,
-    colorspace: number,
-  }
-}
+import { qoiDecode } from './qoi';
 
 let name: string = 'World';
 foo.sayHello(name);
@@ -82,8 +67,7 @@ async function main() {
     console.log(rsp.toObject())
     const frsp = await fetch(`http://localhost:8000/static/${rsp.getAssetId()}`)
     const d = await frsp.arrayBuffer()
-    const q = QOI.decode(d, undefined, undefined, 4)
-    console.log(q.width, q.height, q.width * q.height * 4, q.data.length)
+    const q = qoiDecode(d, { outputChannels: 4 })
     const t = new THREE.DataTexture(q.data, q.width, q.height, THREE.RGBAFormat)
     t.generateMipmaps = true
     t.needsUpdate = true

@@ -16,7 +16,6 @@
     "@types/three": "^0.160.0",
     "google-protobuf": "^3.21.4",
     "grpc-web": "^1.5.0",
-    "qoijs": "^1.0.0",
     "three": "^0.160.0"
   }
 }
