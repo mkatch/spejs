@@ -30,7 +30,13 @@ func main() {
 			args: []string{
 				fmt.Sprintf("--port=%d", universeGrpcPort),
 			},
-			port: universeGrpcPort,
+			port:      universeGrpcPort,
+			buildPath: "cmake",
+			buildArgs: []string{
+				"--build", "./build",
+				"--config", "Release",
+				"--target", "universe_server",
+			},
 		},
 		{
 			name:  "frontend",

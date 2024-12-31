@@ -17,6 +17,7 @@ type launcher struct {
 	allJobIndices         []int
 	lastStatus            string
 	lastStatusRefreshTime time.Time
+	lastUserCommand       string
 }
 
 func (l *launcher) repl() error {
@@ -59,26 +60,61 @@ repl:
 }
 
 func (l *launcher) userCommand(line string) (quit bool) {
-	quit = false
 	fields := strings.Fields(line)
+	quit = false
 	if len(fields) == 0 {
 		return
 	}
+
+	if fields[0] == "." && len(fields) == 1 {
+		if l.lastUserCommand != "" {
+			return l.userCommand(l.lastUserCommand)
+		} else {
+			return
+		}
+	} else {
+		l.lastUserCommand = line
+	}
+
 	switch fields[0] {
 	case "h":
 		log.Print(`
 
-    h          Show this help message.
-    q          Quit all jobs and exit.
-    d          Describe all jobs.
-    d <index>  Describe job with the given index.
-
+    h            Show this help message.
+    Q            Quit all jobs.
+    q <index>    Quit job with the given index.
+    s <index>    Start or attach to job with given index.
+    b <index>    Build job with given index and restart it.
+    d            Describe all jobs.
+    d <index>    Describe job with the given index.
+    .            Rerun last command.
 `)
 		return
-	case "q":
+	case "Q":
 		if len(fields) == 1 {
 			l.stopAll()
 			return true
+		}
+	case "q":
+		if len(fields) == 2 {
+			if i, err := strconv.ParseInt(fields[1], 0, 0); err == nil {
+				l.stop(int(i))
+				return
+			}
+		}
+	case "s":
+		if len(fields) == 2 {
+			if i, err := strconv.ParseInt(fields[1], 0, 0); err == nil {
+				l.attachOrStart(int(i))
+				return
+			}
+		}
+	case "b":
+		if len(fields) == 2 {
+			if i, err := strconv.ParseInt(fields[1], 0, 0); err == nil {
+				l.buildAndRestartOrAttach(int(i))
+				return
+			}
 		}
 	case "d":
 		if len(fields) == 1 {
@@ -86,9 +122,8 @@ func (l *launcher) userCommand(line string) (quit bool) {
 			return
 		} else if len(fields) == 2 {
 			if i, err := strconv.ParseInt(fields[1], 0, 0); err == nil {
-				if err = l.describe(int(i)); err == nil {
-					return
-				}
+				l.describe(int(i))
+				return
 			}
 		}
 	}
@@ -151,7 +186,7 @@ func (l *launcher) eachJobParallel(fn func(job *job) error, indices ...int) erro
 
 	var wg sync.WaitGroup
 
-	for i := range indices {
+	for _, i := range indices {
 		job, err := l.job(i)
 		if err != nil {
 			appendErr(err)
@@ -207,4 +242,10 @@ func (l *launcher) stop(indices ...int) error {
 
 func (l *launcher) stopAll() error {
 	return l.stop(l.allJobIndices...)
+}
+
+func (l *launcher) buildAndRestartOrAttach(indices ...int) error {
+	return l.eachJobParallel(func(job *job) error {
+		return job.buildAndRestartOrAttach()
+	}, indices...)
 }

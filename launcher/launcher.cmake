@@ -20,11 +20,3 @@ add_custom_target(
     # client
     universe_server
 )
-
-add_custom_target(
-  spejs_run
-  COMMENT "[launcher] Running ${LAUNCHER_EXE}"
-  COMMAND ${LAUNCHER_EXE}
-  WORKING_DIRECTORY ${ROOT_DIR}
-  DEPENDS launcher
-)

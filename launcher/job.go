@@ -48,6 +48,8 @@ type job struct {
 	color                 int
 	path                  string
 	args                  []string
+	buildPath             string
+	buildArgs             []string
 	port                  int
 	log                   logger
 	conn                  *grpc.ClientConn
@@ -220,6 +222,15 @@ func (job *job) attachOrStart() error {
 	}
 
 	job.log.Printf("Unable to attach to an already running job: %v.", err)
+	return job.start()
+}
+
+func (job *job) start() error {
+	if job.process != nil {
+		job.log.Print("Job already attached")
+		return nil
+	}
+
 	job.clearErrorsAndWarnings()
 
 	// Windows specific:
@@ -232,9 +243,8 @@ func (job *job) attachOrStart() error {
 		job.args...,
 	)
 	cmd := exec.Command("wt", wtArgs...)
-
 	job.log.Printf("Starting job...\n%s", strings.Join(cmd.Args, " "))
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
 		return job.logAppendErrorf("starting job: %w", err)
 	}
@@ -247,6 +257,15 @@ func (job *job) attachOrStart() error {
 	}
 
 	return nil
+}
+
+func (job *job) restartOrAttach() error {
+	if job.process != nil {
+		job.stopIfRunningAndDetach()
+		return job.start()
+	} else {
+		return job.attachOrStart()
+	}
 }
 
 func (job *job) stopIfRunningAndDetach() {
@@ -322,6 +341,22 @@ func (job *job) stop() error {
 	}
 	job.stopIfRunningAndDetach()
 	return nil
+}
+
+func (job *job) buildAndRestartOrAttach() error {
+	if job.buildPath == "" {
+		job.log.Print("No build command specified.")
+	}
+
+	cmd := exec.Command(job.buildPath, job.buildArgs...)
+	cmd.Stdout = job.log.Writer()
+	cmd.Stderr = job.log.Writer()
+	err := cmd.Run()
+	if err != nil {
+		return job.logAppendErrorf("build: %w", err)
+	}
+
+	return job.restartOrAttach()
 }
 
 func (job *job) refreshStatus() {
