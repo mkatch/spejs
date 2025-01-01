@@ -1,9 +1,6 @@
-#include <glpp/gl.h>
-#include <qoi.h>
+#include <cstdlib>
 
-#define GLM_ENABLE_EXPERIMENTAL 1
-#include <glm/ext.hpp>
-#include <glm/glm.hpp>
+#include <qoi.h>
 
 #include "rpc.h"
 #include "shaders.h"
@@ -21,8 +18,8 @@ UI::UI(TaskQueue &tasks)
 }
 
 UI::~UI() {
-	if (pixels) {
-		delete[] pixels;
+	if (skybox_pixels) {
+		delete[] skybox_pixels;
 	}
 	glfwTerminate();
 }
@@ -32,15 +29,21 @@ struct BasicVertex {
 	glm::vec3 color;
 };
 
-struct SolidVertex {
-	glm::vec3 position;
-	glm::vec3 normal;
-};
-
-gl::VertexBuffer<SolidVertex> create_cube_vertices();
-
 UI *ui(GLFWwindow *window) {
 	return static_cast<UI *>(glfwGetWindowUserPointer(window));
+}
+
+float randf(float min, float max) {
+	float t = (float)std::rand() / RAND_MAX;
+	return (1 - t) * min + t * max;
+}
+
+float randf() {
+	return randf(0, 1);
+}
+
+float randsgn() {
+	return std::rand() % 2 == 0 ? -1.0f : 1.0f;
 }
 
 void UI::event_loop(const RpcServer *rpc_server) {
@@ -61,13 +64,11 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		throw std::runtime_error("Failed to initialize OpenGL API");
 	}
 
-	Shaders shaders;
 	shaders.compile_all();
 	auto &p = shaders.basic_program;
 
 	glClearColor(0.5f, 0.5f, 0.1f, 0.0f);
 
-	GLuint vertex_array;
 	gl_error_guard(glCreateVertexArrays(1, &vertex_array));
 	glBindVertexArray(vertex_array);
 
@@ -84,14 +85,12 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		builder.enable_attribute(p.color, base->color);
 	});
 
-	const gl::VertexBuffer<SolidVertex> cube_vertices = create_cube_vertices();
-	GLuint cube_vertex_array;
+	create_cube_vertices(cube_vertices);
 	gl_error_guard(glCreateVertexArrays(1, &cube_vertex_array));
 	glBindVertexArray(cube_vertex_array);
 
 	const auto &s = shaders.solid_program;
 	glUseProgram(s.program_id);
-	s.Projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 	glm::mat4 m = glm::identity<glm::mat4>();
 	m = glm::translate(m, {0, 0, -10});
 	std::cout << glm::to_string(m) << std::endl;
@@ -113,9 +112,69 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		ui(window)->on_key(key, scancode, action, mods);
 	});
 
-	pixels = new uint8_t[width * height * 3];
+	int skybox_size = 512;
+	gl_error_guard(glCreateFramebuffers(1, &skybox_framebuffer));
+	GLuint skybox_renderbuffers[2];
+	gl_error_guard(glCreateRenderbuffers(2, skybox_renderbuffers));
+	GLuint skybox_color_renderbuffer = skybox_renderbuffers[0];
+	gl_error_guard(glNamedRenderbufferStorage(skybox_color_renderbuffer, GL_RGB8, skybox_size, skybox_size));
+	GLuint skybox_depth_renderbuffer = skybox_renderbuffers[1];
+	gl_error_guard(glNamedRenderbufferStorage(skybox_depth_renderbuffer, GL_DEPTH_COMPONENT24, skybox_size, skybox_size));
+	gl_error_guard(glNamedFramebufferRenderbuffer(skybox_framebuffer, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, skybox_color_renderbuffer));
+	gl_error_guard(glNamedFramebufferRenderbuffer(skybox_framebuffer, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, skybox_depth_renderbuffer));
+	GLenum status = glCheckNamedFramebufferStatus(skybox_framebuffer, GL_FRAMEBUFFER);
+	std::cout << "Skybox framebuffer status: " << gl::enum_string(status) << std::endl;
+
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&default_frmaebuffer);
+	std::cout << "Default framebuffer: " << default_frmaebuffer << std::endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, skybox_framebuffer);
+
+	skybox_pixels = new uint8_t[6 * skybox_size * skybox_size * 3];
+
+	cubes.push_back({
+		{1.0f, 0.0f, 0.0f},
+		{1.0f, 0.0f, 0.0f},
+	});
+	cubes.push_back({
+		{-1.0f, 0.0f, 0.0f},
+		{ 1.0f, 0.5f, 0.0f},
+	});
+	cubes.push_back({
+		{0.0f, 1.0f, 0.0f},
+		{0.0f, 1.0f, 0.0f},
+	});
+	cubes.push_back({
+		{0.0f, -1.0f, 0.0f},
+		{0.5f,  1.0f, 0.0f},
+	});
+	cubes.push_back({
+		{0.0f, 0.0f, 1.0f},
+		{0.0f, 0.0f, 1.0f},
+	});
+	cubes.push_back({
+		{0.0f, 0.0f, -1.0f},
+		{0.5f, 0.0f,  1.0f},
+	});
+	for (auto &cube : cubes) {
+		cube.position *= 10.0f;
+		// cube.scale = 0.6f;
+	}
+
+	for (int i = 0; i < 200; ++i) {
+		glm::vec3 p = {randf(-10, 10), randf(-10, 10), randf(-10, 10)};
+		glm::normalize(p);
+		p *= randf(5, 10);
+		cubes.push_back({
+			p, // position
+			{randf(), randf(), randf()}, // color
+			randf(-10, 10), // phase
+			randf(2.0, 6.0), // scale
+		});
+	}
 
 	while (!glfwWindowShouldClose(window) && rpc_server->is_running()) {
+		glBindFramebuffer(GL_FRAMEBUFFER, default_frmaebuffer);
+		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		gl_error_guard(glUseProgram(shaders.basic_program.program_id));
@@ -123,13 +182,22 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glUseProgram(s.program_id);
-		s.color = {1.0f, 0.8f, 0.8f, 1.0f};
-		glm::mat4 Model = m * glm::eulerAngleYXZ((float)glfwGetTime() * 2.0f, (float)glfwGetTime() * 3.0f, 0.0f);
-		s.Model = Model;
-		s.Normal_model = glm::inverseTranspose(glm::mat3(Model));
-
 		glBindVertexArray(cube_vertex_array);
-		glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
+		s.Projection = glm::perspective(glm::radians(90.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+		for (auto &cube : cubes) {
+			float t = (float)glfwGetTime() + cube.phase;
+			cube.Model = glm::identity<glm::mat4>();
+			cube.Model = glm::translate(cube.Model, cube.position);
+			cube.Model = glm::scale(cube.Model, {cube.scale, cube.scale, cube.scale});
+			cube.Model *= glm::eulerAngleYXZ(t * 2.0f, t * 3.0f, 0.0f);
+			cube.Normal_model = glm::inverseTranspose(glm::mat3(cube.Model));
+
+			s.Model = cube.Model;
+			s.Normal_model = cube.Normal_model;
+			s.color = glm::vec4(cube.color, 1.0f);
+
+			glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
+		}
 
 		process_tasks();
 
@@ -154,15 +222,49 @@ void UI::process_tasks() {
 	}
 }
 
+// TODO: The order is by trial & error. I have no idea why it is in this
+// particular way. Probably something is wrong and I just made an even number of
+// mistakes. Revisit and clean up.
+const glm::mat4 LOOKATS[] = {
+	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(+1, 0, 0), glm::vec3(0, +1, 0)),
+	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(-1, 0, 0), glm::vec3(0, +1, 0)),
+	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, +1, 0), glm::vec3(0, 0, +1)),
+	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)),
+	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, -1), glm::vec3(0, +1, 0)),
+	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, +1), glm::vec3(0, +1, 0)),
+};
+
 void UI::process_task(const SkyboxTask &task) {
-	int width, height;
-	glfwGetWindowSize(window, &width, &height);
-	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-	qoi_desc desc = {(unsigned int)width, (unsigned int)height, 3, QOI_LINEAR};
-	qoi_write(task.asset_id.c_str(), pixels, &desc);
+	glBindFramebuffer(GL_FRAMEBUFFER, skybox_framebuffer);
+	glViewport(0, 0, SKYBOX_SIZE, SKYBOX_SIZE);
+
+	const auto &s = shaders.solid_program;
+	glUseProgram(s.program_id);
+	glBindVertexArray(cube_vertex_array);
+
+	glm::mat4 p = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
+	int i = 0;
+	for (int i = 0; i < 6; ++i) {
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		s.Projection = p * LOOKATS[i];
+
+		for (auto &cube : cubes) {
+			s.Model = cube.Model;
+			s.Normal_model = cube.Normal_model;
+			s.color = glm::vec4(cube.color, 1.0f);
+			glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
+		}
+
+		glReadPixels(
+				0, 0, SKYBOX_SIZE, SKYBOX_SIZE, GL_RGB, GL_UNSIGNED_BYTE,
+				skybox_pixels + i * SKYBOX_SIZE * SKYBOX_SIZE * 3);
+	}
+
+	qoi_desc desc = {(unsigned int)SKYBOX_SIZE, 6 * (unsigned int)SKYBOX_SIZE, 3, QOI_LINEAR};
+	qoi_write(task.asset_id.c_str(), skybox_pixels, &desc);
 }
 
-gl::VertexBuffer<SolidVertex> create_cube_vertices() {
+void UI::create_cube_vertices(gl::VertexBuffer<SolidVertex> &vertex_buffer) {
 	std::vector<SolidVertex> vertices;
 	auto push_face = [&](const glm::vec3 &p, const glm::vec3 &ux, const glm::vec3 &uy) {
 		const glm::vec3 n = glm::cross(ux, uy);
@@ -184,7 +286,5 @@ gl::VertexBuffer<SolidVertex> create_cube_vertices() {
 	push_face(v1, -uz, -ux);
 	push_face(v0, +uy, +ux);
 	push_face(v1, -ux, -uy);
-	gl::VertexBuffer<SolidVertex> vertex_buffer;
 	vertex_buffer.buffer_data(vertices.data(), vertices.size());
-	return vertex_buffer;
 }

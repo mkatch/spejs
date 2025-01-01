@@ -14,16 +14,15 @@ class VertexArrayBuilder;
 // functionality to help build vertex arrays with it.
 template <typename T>
 class VertexBuffer {
-	GLuint _buffer_id;
-	GLsizei _vertex_count;
+	GLuint _buffer_id = 0;
+	GLsizei _vertex_count = 0;
 
 public:
-	VertexBuffer() {
-		gl_error_guard(glCreateBuffers(1, &_buffer_id));
-	}
+	VertexBuffer() = default;
 	VertexBuffer(const VertexBuffer &) = delete;
 	VertexBuffer(VertexBuffer &&other) {
 		_buffer_id = other._buffer_id;
+		_vertex_count = other._vertex_count;
 		other._buffer_id = 0;
 	}
 	~VertexBuffer() {
@@ -35,6 +34,7 @@ public:
 	GLsizei vertex_count() const { return _vertex_count; }
 
 	void buffer_data(const T *data, GLsizei vertex_count, GLenum usage = GL_STATIC_DRAW) {
+		ensure_created();
 		_vertex_count = vertex_count;
 		glNamedBufferData(_buffer_id, vertex_count * sizeof(T), data, usage);
 	}
@@ -47,8 +47,19 @@ public:
 
 	// Binds the buffer for building a vertex array.
 	void bind(std::function<void(VertexArrayBuilder, const T *)> build) const {
+		assert_created();
 		glBindBuffer(GL_ARRAY_BUFFER, _buffer_id);
 		build(VertexArrayBuilder(sizeof(T)), nullptr);
+	}
+
+	void assert_created() const {
+		assert(_buffer_id != 0);
+	}
+
+	void ensure_created() {
+		if (_buffer_id == 0) {
+			gl_error_guard(glCreateBuffers(1, &_buffer_id));
+		}
 	}
 };
 

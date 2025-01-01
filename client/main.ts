@@ -68,11 +68,28 @@ async function main() {
     const frsp = await fetch(`http://localhost:8000/static/${rsp.getAssetId()}`)
     const d = await frsp.arrayBuffer()
     const q = qoiDecode(d, { outputChannels: 4 })
-    const t = new THREE.DataTexture(q.data, q.width, q.height, THREE.RGBAFormat)
-    t.generateMipmaps = true
-    t.needsUpdate = true
-    skyboxTexture = t
-    env = createEnvMesh()
+    console.log("skybox", q.width, 'x', q.height)
+    const images = new Array<THREE.DataTexture>(6)
+    const ii = new Uint8Array(q.data)
+    for (let i = 0; i < images.length; ++i) {
+      const s = q.width * q.width * 4
+      const ab = new Uint8Array(s)
+
+      for (let r = 0; r < q.width; ++r) {
+        const i0 = (i + 1) * s - (r + 1) * q.width * 4
+        const o0 = r * q.width * 4
+        for (let c = 0; c < q.width * 4; ++c) {
+          ab[o0 + c] = ii[i0 + c]
+        }
+      }
+      const t = new THREE.DataTexture(ab, q.width, q.width, THREE.RGBAFormat)
+      t.generateMipmaps = true
+      t.needsUpdate = true
+      images[i] = t
+    }
+    const envMap = new THREE.CubeTexture(images)
+    envMap.needsUpdate = true
+    env = createEnvMesh(envMap)
     scene.add(env)
     // TEST_CUBE_MAP.images[0] = t
     // if (skyboxMaterial) {
@@ -95,8 +112,6 @@ async function main() {
   );
 
   const scene = new THREE.Scene();
-  // const env = createEnvMesh();
-  // scene.add(env);
 
   renderer.domElement.addEventListener('mousemove', e => {
     const r = (e.target as HTMLElement).getBoundingClientRect();
@@ -148,9 +163,7 @@ const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
   return new THREE.CubeTextureLoader().load(faces)
 })();
 
-let skyboxTexture: THREE.Texture | undefined
-
-function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> {
+function createEnvMesh(envMap: THREE.CubeTexture): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
     -1, -1, 1, 1, -1, 1,
@@ -163,8 +176,8 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
   const material = new THREE.RawShaderMaterial({
     uniforms: {
       camera: { value: new Matrix3() },
-      envMap: { value: TEST_CUBE_MAP },
-      skyboxTexture: { value: skyboxTexture }
+      envMap: { value: envMap },
+      axisMap: { value: TEST_CUBE_MAP },
     },
     vertexShader: `
       uniform mat3 camera;
@@ -177,11 +190,12 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
   `,
     fragmentShader: `
       uniform samplerCube envMap;
-      uniform sampler2D skyboxTexture;
+      uniform samplerCube axisMap;
       varying highp vec3 envCoords;
   void main() {
-    lowp vec4 t = texture2D(skyboxTexture, envCoords.xy);
-    gl_FragColor = vec4(t.xyz, 1.0);
+    gl_FragColor =
+      0.9 * textureCube(envMap, envCoords) +
+      0.1 * textureCube(axisMap, envCoords);
   }
   `,
     depthTest: false,

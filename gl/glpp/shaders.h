@@ -64,12 +64,12 @@ protected:
 			glUniform1##gl_setter_infix(location, value);                              \
 		}                                                                            \
 	}
-#define _vector_Uniform(component_count, glsl_type, gl_type, gl_setter_infix, cpp_component_type) \
-	Uniform_##glsl_type : public Uniform {                                                          \
-		Uniform_##glsl_type(char const *name) : Uniform(name, gl_type) { }                            \
-		void operator=(const cpp_component_type /**/ (&value)[component_count]) const {               \
-			glUniform##component_count##gl_setter_infix##v(location, 1, value);                         \
-		}                                                                                             \
+#define _vector_Uniform(component_count, glsl_type, gl_type, gl_setter_infix, cpp_component_type)  \
+	Uniform_##glsl_type : public Uniform {                                                           \
+		Uniform_##glsl_type(char const *name) : Uniform(name, gl_type) { }                             \
+		void operator=(const glm::vec##component_count &u) const {                                     \
+			glUniform##component_count##gl_setter_infix##v(location, 1, (const cpp_component_type *)&u); \
+		}                                                                                              \
 	}
 #define _matrix_Uniform(csize, rsize)                                             \
 	Uniform_mat##csize : public Uniform {                                           \

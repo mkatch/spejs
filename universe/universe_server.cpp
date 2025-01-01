@@ -2,6 +2,8 @@
 #include <absl/flags/flag.h>
 #include <absl/flags/parse.h>
 #include <absl/flags/usage.h>
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <memory>
 
@@ -20,6 +22,8 @@ int main(int argc, char **argv) {
 		absl::SetProgramUsageMessage("Universe server");
 		absl::ParseCommandLine(argc, argv);
 		string port_string = absl::GetFlag(FLAGS_port);
+
+		std::srand(std::time(0));
 
 		TaskQueue tasks;
 
