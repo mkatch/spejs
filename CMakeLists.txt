@@ -18,8 +18,6 @@ if (NOT REL_BUILD_DIR STREQUAL "build")
   )
 endif()
 
-include(util.cmake)
-
 find_package(GLM REQUIRED)
 find_package(Glad REQUIRED)
 find_package(GLFW REQUIRED)
@@ -37,7 +35,7 @@ include_directories(
 )
 
 include(ts.cmake)
-
+include(cmake/util.cmake)
 include(cmake/proto.cmake)
 
 function(include_pkg REL_PKG_CMAKE)
