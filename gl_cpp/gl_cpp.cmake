@@ -18,7 +18,7 @@ add_custom_command(
 include_directories(${GLAD_INCLUDE_DIR})
 
 file(GLOB GLPP_SRCS "${PKG_SRC_DIR}/*.cpp" "${PKG_SRC_DIR}/*.h")
-add_library(glpp
+add_library(gl_cpp
   ${GLPP_SRCS}
   ${GLAD_GEN_FILES}
 )

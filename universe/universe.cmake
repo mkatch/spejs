@@ -15,7 +15,7 @@ add_executable(universe_server
 target_link_libraries(universe_server
   ${GRPC_LIBS}
   glm
-  glpp
+  gl_cpp
   glfw
   OpenGL::GL
 )

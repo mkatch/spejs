@@ -63,7 +63,7 @@ func subCmdCppHeader(header string, inputs []string) {
 	fmt.Fprintf(out, "// Generated file. DO NOT EDIT.\n")
 	fmt.Fprintf(out, "// Time: %s\n", invocationTime)
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "#include <glpp/gl.h>\n")
+	fmt.Fprintf(out, "#include <gl_cpp/gl.h>\n")
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "struct ShaderSources {\n")
 	for _, input := range inputs {

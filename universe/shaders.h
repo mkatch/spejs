@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glpp/gl.h>
+#include <gl_cpp/gl.h>
 #include <universe/shaders/shader_sources.h>
 
 struct Shaders : public gl::Shaders {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/cpp/common.h>
+#include <common_cpp/common.h>
 #include <glad/gl.h>
 
 namespace gl {

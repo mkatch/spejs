@@ -4,5 +4,5 @@ use (
 	./build/proto/go
 	./frontend
 	./launcher
-	./gl/shader_bundler
+	./shader_bundler
 )

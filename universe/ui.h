@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <glpp/gl.h>
+#include <gl_cpp/gl.h>
 
 #define GLM_ENABLE_EXPERIMENTAL 1
 #include <glm/ext.hpp>
