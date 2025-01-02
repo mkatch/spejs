@@ -38,6 +38,8 @@ include_directories(
 
 include(ts.cmake)
 
+include(cmake/proto.cmake)
+
 function(include_pkg REL_PKG_CMAKE)
   cmake_path(SET PKG_CMAKE "${ROOT_DIR}/${REL_PKG_CMAKE}")
   cmake_path(GET REL_PKG_CMAKE PARENT_PATH REL_PKG_DIR)

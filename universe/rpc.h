@@ -3,11 +3,13 @@
 #include <string>
 
 #include "job.h"
+#include "skybox.h"
 #include "universe.h"
 
 class RpcServer {
 	int _port;
 	JobServiceImpl job_service;
+	UniverseSkyboxServiceServer skybox_service;
 	UniverseServiceImpl universe_service;
 	std::shared_ptr<grpc::Server> server;
 	std::thread waiting_thread;

@@ -1,3 +1,13 @@
+cmake_path(SET PROTO_SRC_DIR "${PKG_SRC_DIR}/proto")
+cmake_path(SET PROTO_OUT_DIR "${PKG_BUILD_DIR}/proto")
+add_proto_generate_target(
+  universe_proto
+  SRC_DIR "${PROTO_SRC_DIR}"
+  OUT_DIR "${PROTO_OUT_DIR}"
+  LANGS "cpp" "go"
+  GO_PACKAGE "github.com/mkacz91/spejs/universe"
+)
+
 file(GLOB SHADER_SRCS "${PKG_SRC_DIR}/shaders/*.glsl")
 cmake_path(SET SHADER_SOURCES_H "${PKG_BUILD_DIR}/shaders/shader_sources.h")
 bundle_shaders_cpp(
@@ -18,4 +28,6 @@ target_link_libraries(universe_server
   gl_cpp
   glfw
   OpenGL::GL
+  proto_cpp
+  universe_proto_cpp
 )

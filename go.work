@@ -2,6 +2,7 @@ go 1.23.4
 
 use (
 	./build/proto/go
+	./build/universe/proto/go
 	./frontend
 	./launcher
 	./shader_bundler
