@@ -34,7 +34,6 @@ include_directories(
   ${BUILD_DIR}
 )
 
-include(ts.cmake)
 include(cmake/util.cmake)
 include(cmake/proto.cmake)
 
@@ -57,5 +56,3 @@ include_pkg(client/client.cmake)
 include_pkg(frontend/frontend.cmake)
 include_pkg(universe/universe.cmake)
 include_pkg(launcher/launcher.cmake)
-
-ts_add_command()

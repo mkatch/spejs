@@ -14,9 +14,5 @@ add_custom_command(
 add_custom_target(
   launcher ALL
   COMMENT "[launcher] ${LAUNCHER_EXE} up to date."
-  DEPENDS
-    ${LAUNCHER_EXE}
-    frontend_server
-    # client
-    universe_server
+  DEPENDS ${LAUNCHER_EXE}
 )

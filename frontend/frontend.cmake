@@ -8,7 +8,7 @@ add_custom_command(
   COMMENT "[frontend] Building ${FRONTEND_SERVER_EXE}"
   OUTPUT ${FRONTEND_SERVER_EXE}
   COMMAND go build -C "${PKG_SRC_DIR}" -o "${FRONTEND_SERVER_EXE}"
-  DEPENDS ${FRONTEND_SERVER_SRCS}
+  DEPENDS ${FRONTEND_SERVER_SRCS} proto universe_proto
 )
 
 add_custom_target(

@@ -2,12 +2,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build --outDir build/vite"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
-    "esbuild": "0.19.11",
     "typescript": "^5.3.3",
     "vite": "^6.0.3",
     "vite-tsconfig-paths": "^5.1.4"

@@ -6,7 +6,7 @@ export default defineConfig({
 	build: {
 		rollupOptions: {
 			input: {
-				client: resolve(__dirname, 'src/client/index.html'),
+				client: resolve(__dirname, 'client/index.html'),
 			}
 		}
 	},
