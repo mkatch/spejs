@@ -233,6 +233,18 @@ func (job *job) start() error {
 
 	job.clearErrorsAndWarnings()
 
+	if job.buildPath != "" {
+		job.log.Print("Building job...")
+		cmd := exec.Command(job.buildPath, job.buildArgs...)
+		writer := job.log.WrappedWriter()
+		cmd.Stdout = writer
+		cmd.Stderr = writer
+		err := cmd.Run()
+		if err != nil {
+			return job.logAppendErrorf("build: %w", err)
+		}
+	}
+
 	// Windows specific:
 	wtArgs := append([]string{
 		"--window=0",
@@ -341,22 +353,6 @@ func (job *job) stop() error {
 	}
 	job.stopIfRunningAndDetach()
 	return nil
-}
-
-func (job *job) buildAndRestartOrAttach() error {
-	if job.buildPath == "" {
-		job.log.Print("No build command specified.")
-	}
-
-	cmd := exec.Command(job.buildPath, job.buildArgs...)
-	cmd.Stdout = job.log.Writer()
-	cmd.Stderr = job.log.Writer()
-	err := cmd.Run()
-	if err != nil {
-		return job.logAppendErrorf("build: %w", err)
-	}
-
-	return job.restartOrAttach()
 }
 
 func (job *job) refreshStatus() {

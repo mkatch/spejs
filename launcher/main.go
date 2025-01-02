@@ -15,8 +15,7 @@ func main() {
 
 	_, err := os.Stat("go.work")
 	if err != nil {
-		log.Errorf("This program must be run from the root of the repository.")
-		os.Exit(1)
+		log.Fatalf("This program must be run from the root of the repository.")
 	}
 
 	universeGrpcPort := 6200
@@ -30,13 +29,13 @@ func main() {
 			args: []string{
 				fmt.Sprintf("--port=%d", universeGrpcPort),
 			},
-			port:      universeGrpcPort,
 			buildPath: "cmake",
 			buildArgs: []string{
 				"--build", "./build",
 				"--config", "Release",
 				"--target", "universe_server",
 			},
+			port: universeGrpcPort,
 		},
 		{
 			name:  "frontend",
@@ -48,6 +47,12 @@ func main() {
 				fmt.Sprintf("--universe-addr=:%d", universeGrpcPort),
 				"--index-tmpl=src/client/index.tmpl",
 				"--index-js=build/client/client.js",
+			},
+			buildPath: "cmake",
+			buildArgs: []string{
+				"--build", "./build",
+				"--config", "Release",
+				"--target", "frontend_server",
 			},
 			port: frontendGrpcPort,
 		},

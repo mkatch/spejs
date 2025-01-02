@@ -84,7 +84,7 @@ func (l *launcher) userCommand(line string) (quit bool) {
     Q            Quit all jobs.
     q <index>    Quit job with the given index.
     s <index>    Start or attach to job with given index.
-    b <index>    Build job with given index and restart it.
+    r <index>    Restart job with given index.
     d            Describe all jobs.
     d <index>    Describe job with the given index.
     .            Rerun last command.
@@ -109,10 +109,10 @@ func (l *launcher) userCommand(line string) (quit bool) {
 				return
 			}
 		}
-	case "b":
+	case "r":
 		if len(fields) == 2 {
 			if i, err := strconv.ParseInt(fields[1], 0, 0); err == nil {
-				l.buildAndRestartOrAttach(int(i))
+				l.restartOrAttach(int(i))
 				return
 			}
 		}
@@ -226,12 +226,12 @@ func focusThisTerminalTab() {
 	}
 }
 
-func (l *launcher) attachOrStart(indices ...int) (err error) {
-	err = l.eachJobParallel(func(job *job) error {
+func (l *launcher) attachOrStart(indices ...int) error {
+	err := l.eachJobParallel(func(job *job) error {
 		return job.attachOrStart()
 	}, indices...)
 	focusThisTerminalTab()
-	return
+	return err
 }
 
 func (l *launcher) stop(indices ...int) error {
@@ -244,8 +244,10 @@ func (l *launcher) stopAll() error {
 	return l.stop(l.allJobIndices...)
 }
 
-func (l *launcher) buildAndRestartOrAttach(indices ...int) error {
-	return l.eachJobParallel(func(job *job) error {
-		return job.buildAndRestartOrAttach()
+func (l *launcher) restartOrAttach(indices ...int) error {
+	err := l.eachJobParallel(func(job *job) error {
+		return job.restartOrAttach()
 	}, indices...)
+	focusThisTerminalTab()
+	return err
 }

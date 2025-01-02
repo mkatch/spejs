@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	stdlog "log"
+	"os"
 )
 
 type logger struct {
@@ -28,6 +30,10 @@ func formatErrorLog(err error) string {
 	return fmt.Sprintf("\033[38;5;1mError:\033[0m %v", err)
 }
 
+func formatFatalLog(err error) string {
+	return fmt.Sprintf("\033[38;5;1mFATAL:\033[0m %v", err)
+}
+
 func (l logger) Warning(err error) error {
 	l.Print(formatWarningLog(err))
 	return err
@@ -44,4 +50,22 @@ func (l logger) Error(err error) error {
 
 func (l *logger) Errorf(format string, a ...any) error {
 	return l.Error(fmt.Errorf(format, a...))
+}
+
+func (l *logger) Fatalf(format string, a ...any) {
+	l.Print(formatFatalLog(fmt.Errorf(format, a...)))
+	os.Exit(1)
+}
+
+type wrappedLogWriter struct {
+	log *logger
+}
+
+func (l *logger) WrappedWriter() io.Writer {
+	return &wrappedLogWriter{l}
+}
+
+func (w *wrappedLogWriter) Write(p []byte) (n int, err error) {
+	w.log.Print(string(p))
+	return len(p), nil
 }
