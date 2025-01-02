@@ -1,9 +1,10 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include "common.h"
+
 #include <vector>
 
-#include "common.h"
+#include "math.h"
 
 namespace gl {
 
