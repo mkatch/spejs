@@ -35,7 +35,9 @@ func main() {
 				"--config", "Release",
 				"--target", "universe_server",
 			},
-			port: universeGrpcPort,
+			service: &grpcJobService{
+				port: universeGrpcPort,
+			},
 		},
 		{
 			name:  "frontend",
@@ -54,7 +56,9 @@ func main() {
 				"--config", "Release",
 				"--target", "frontend_server",
 			},
-			port: frontendGrpcPort,
+			service: &grpcJobService{
+				port: frontendGrpcPort,
+			},
 		},
 	}
 	jobsByName := make(map[string]*job)

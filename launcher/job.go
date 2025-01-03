@@ -17,32 +17,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type JobSpec struct {
-	Name     string
-	Color    int
-	Command  string
-	Args     []string
-	GrpcPort int
-}
-
-type JobAttachState int
-
-const (
-	JobAttachNone JobAttachState = iota
-	JobAttachOk
-	JobAttachWarning
-	JobAttachError
-)
-
-type JobStatus int
-
-const (
-	JobStatusUnknown JobStatus = iota
-	JobStatusReady
-	JobStatusWarning
-	JobStatusError
-)
-
 type job struct {
 	name                  string
 	color                 int
@@ -50,10 +24,8 @@ type job struct {
 	args                  []string
 	buildPath             string
 	buildArgs             []string
-	port                  int
 	log                   logger
-	conn                  *grpc.ClientConn
-	service               pb.JobServiceClient
+	service               jobService
 	process               *os.Process
 	exitState             *atomic.Pointer[jobExitState]
 	exited                chan bool
@@ -61,6 +33,14 @@ type job struct {
 	lastStatusRefreshTime time.Time
 	warnings              []error
 	errors                []error
+}
+
+type jobService interface {
+	Attach(context.Context) (*pb.JobAttachResponse, error)
+	Status(context.Context) (*pb.JobStatusResponse, error)
+	Quit(context.Context) error
+	Close() error
+	Port() int
 }
 
 type jobExitState struct {
@@ -111,7 +91,7 @@ func (job *job) describe() {
 		}
 		b.WriteString(fmt.Sprintf("    PID:    %d\n", job.process.Pid))
 	}
-	b.WriteString(fmt.Sprintf("    Port:   %d\n", job.port))
+	b.WriteString(fmt.Sprintf("    Port:   %d\n", job.service.Port()))
 	b.WriteString(fmt.Sprintf("    Command: %s\n", job.command()))
 	for _, warn := range job.warnings {
 		b.WriteString(fmt.Sprintf("    %s\n", formatWarningLog(warn)))
@@ -154,25 +134,14 @@ func (job *job) attach(attemptCount int) (err error) {
 		}
 	}()
 
-	req := &pb.Empty{}
 	var rsp *pb.JobAttachResponse
-	dialTarget := fmt.Sprintf("localhost:%d", job.port)
-	credentials := insecure.NewCredentials()
 	for attempt := 0; rsp == nil && attempt < attemptCount; attempt++ {
 		if attempt > 0 {
 			time.Sleep(1 * time.Second)
 		}
-		if job.conn == nil {
-			job.conn, err = grpc.Dial(dialTarget, grpc.WithTransportCredentials(credentials))
-			if err == nil {
-				job.service = pb.NewJobServiceClient(job.conn)
-			}
-		}
-		if job.service != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			rsp, err = job.service.Attach(ctx, req)
-			cancel()
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		rsp, err = job.service.Attach(ctx)
+		cancel()
 		if err != nil && attemptCount > 1 {
 			job.log.Printf("Attach RPC attempt %d (out of %d) failed: %v", attempt, attemptCount, err)
 		}
@@ -286,7 +255,7 @@ func (job *job) stopIfRunningAndDetach() {
 		defer cancel()
 
 		job.log.Print("Sending Quit request to gracefully stop the job...")
-		_, err := job.service.Quit(ctx, &pb.Empty{})
+		err := job.service.Quit(ctx)
 		if err != nil {
 			job.logAppendErrorf("quit: %w", err)
 		} else {
@@ -332,15 +301,11 @@ func (job *job) stopIfRunningAndDetach() {
 	}
 	job.process = nil
 
-	if job.conn != nil {
-		err := job.conn.Close()
-		if err != nil {
-			job.logAppendErrorf("close connection: %w", err)
-		}
-		job.conn = nil
+	err := job.service.Close()
+	if err != nil {
+		job.logAppendErrorf("close connection: %w", err)
 	}
 
-	job.service = nil
 	job.warnings = nil
 	job.exitState = nil
 	job.exited = nil
@@ -375,7 +340,7 @@ func (job *job) refreshStatus() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	status, err := job.service.Status(ctx, &pb.Empty{})
+	status, err := job.service.Status(ctx)
 
 	if err != nil {
 		job.status = nil
@@ -383,6 +348,56 @@ func (job *job) refreshStatus() {
 	} else {
 		job.status = status
 		job.lastStatusRefreshTime = time.Now()
+	}
+}
+
+type grpcJobService struct {
+	port   int
+	conn   *grpc.ClientConn
+	client pb.JobServiceClient
+}
+
+func (s *grpcJobService) Port() int {
+	return s.port
+}
+
+func (s *grpcJobService) Attach(ctx context.Context) (*pb.JobAttachResponse, error) {
+	if s.client == nil {
+		conn, err := grpc.Dial(
+			fmt.Sprintf("localhost:%d", s.port),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			return nil, err
+		}
+		s.conn = conn
+		s.client = pb.NewJobServiceClient(conn)
+	}
+
+	return s.client.Attach(ctx, &pb.Empty{})
+}
+
+func (s *grpcJobService) Status(ctx context.Context) (*pb.JobStatusResponse, error) {
+	if s.client == nil {
+		return nil, fmt.Errorf("not attached")
+	}
+	return s.client.Status(ctx, &pb.Empty{})
+}
+
+func (s *grpcJobService) Quit(ctx context.Context) error {
+	if s.client == nil {
+		return fmt.Errorf("not attached")
+	}
+	_, err := s.client.Quit(ctx, &pb.Empty{})
+	return err
+}
+
+func (s *grpcJobService) Close() error {
+	if s.conn != nil {
+		s.client = nil
+		return s.conn.Close()
+	} else {
+		return nil
 	}
 }
 
