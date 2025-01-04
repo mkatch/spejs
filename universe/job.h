@@ -20,9 +20,9 @@ public:
 
 	void set_on_quit(const std::function<void()> &callback);
 
-	grpc::Status Attach(grpc::ServerContext *c, Empty const *req, JobAttachResponse *rsp) override;
-	grpc::Status Status(grpc::ServerContext *c, Empty const *req, JobStatusResponse *rsp) override;
-	grpc::Status Quit(grpc::ServerContext *c, Empty const *req, Empty *rsp) override;
+	grpc::Status Attach(grpc::ServerContext *ctx, const google::protobuf::Empty *req, JobAttachResponse *rsp) override;
+	grpc::Status Status(grpc::ServerContext *ctx, const google::protobuf::Empty *req, JobStatusResponse *rsp) override;
+	grpc::Status Quit(grpc::ServerContext *ctx, const google::protobuf::Empty *req, google::protobuf::Empty *rsp) override;
 
 private:
 	static string assemble_command(int argc, char **argv);

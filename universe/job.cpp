@@ -14,18 +14,18 @@ void JobServiceImpl::set_on_quit(const std::function<void()> &callback) {
 	}
 }
 
-grpc::Status JobServiceImpl::Attach(grpc::ServerContext *c, Empty const *req, JobAttachResponse *rsp) {
+grpc::Status JobServiceImpl::Attach(grpc::ServerContext *ctx, const google::protobuf::Empty *req, JobAttachResponse *rsp) {
 	rsp->set_command(command);
 	rsp->set_pid(pid);
 	return grpc::Status::OK;
 }
 
-grpc::Status JobServiceImpl::Status(grpc::ServerContext *c, Empty const *req, JobStatusResponse *rsp) {
+grpc::Status JobServiceImpl::Status(grpc::ServerContext *ctx, const google::protobuf::Empty *req, JobStatusResponse *rsp) {
 	rsp->set_is_ready(true);
 	return grpc::Status::OK;
 }
 
-grpc::Status JobServiceImpl::Quit(grpc::ServerContext *context, Empty const *request, Empty *response) {
+grpc::Status JobServiceImpl::Quit(grpc::ServerContext *ctx, const google::protobuf::Empty *req, google::protobuf::Empty *rsp) {
 	const std::lock_guard lock(mut);
 	if (!quit_requested) {
 		quit_requested = true;

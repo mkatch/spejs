@@ -7,6 +7,7 @@ import (
 	"github.com/mkacz91/spejs/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type grpcJobService struct {
@@ -32,7 +33,7 @@ func (s *grpcJobService) Attach(ctx context.Context) (*JobAttach, error) {
 		s.client = pb.NewJobServiceClient(conn)
 	}
 
-	rsp, err := s.client.Attach(ctx, &pb.Empty{})
+	rsp, err := s.client.Attach(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func (s *grpcJobService) Status(ctx context.Context) (*JobStatus, error) {
 	if s.client == nil {
 		return nil, fmt.Errorf("not attached")
 	}
-	rsp, err := s.client.Status(ctx, &pb.Empty{})
+	rsp, err := s.client.Status(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func (s *grpcJobService) Quit(ctx context.Context) error {
 	if s.client == nil {
 		return fmt.Errorf("not attached")
 	}
-	_, err := s.client.Quit(ctx, &pb.Empty{})
+	_, err := s.client.Quit(ctx, &emptypb.Empty{})
 	return err
 }
 

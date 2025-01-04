@@ -1,6 +1,4 @@
 import * as foo from './foo';
-import { Empty } from '@proto/empty_pb';
-import { JobServiceClient } from '@proto/JobServiceClientPb';
 import { OpticalSampleRequest, PingRequest, SkyboxRequest } from '@proto/universe_pb';
 import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
@@ -9,13 +7,6 @@ import { qoiDecode } from './qoi';
 
 let name: string = 'World';
 foo.sayHello(name);
-const client = new JobServiceClient('/rpc')
-client.status(new Empty(), {}, (err, resp) => {
-  console.log("err: ", err)
-  console.log("resp: ", resp.toObject())
-});
-console.log(client)
-console.log(Empty)
 
 async function main() {
   document.body.innerHTML = `

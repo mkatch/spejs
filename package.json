@@ -5,6 +5,7 @@
     "build": "tsc && vite build --outDir build/vite"
   },
   "devDependencies": {
+    "@types/google-protobuf": "^3.15.12",
     "@types/node": "^22.10.1",
     "typescript": "^5.3.3",
     "vite": "^6.0.3",
