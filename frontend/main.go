@@ -21,13 +21,13 @@ import (
 // doesn't seem like a good idea. Maybe we should have some kind of install
 // build step that copies files to one directory?
 var (
-	clientRedirect = flag.String("client-redirect", "", "Redirect for the client app request. Useful when running a separate dev client (Vite)")
-	webPort        = flag.Int("web-port", 8000, "The port to serve web content")
-	indexTmpl      = flag.String("index-tmpl", "missing", "Path to the app .html file")
-	indexJs        = flag.String("index-js", "missing", "Path to the app .js bundle")
-	grpcPort       = flag.Int("grpc-port", 6100, "The port to serve gRPC requests")
-	grpcwebPort    = flag.Int("grpcweb-port", 6101, "The port to serve gRPC-Web requests")
-	universeAddr   = flag.String("universe-addr", "", "The address of the universe server")
+	devClientRedirect = flag.String("dev-client-redirect", "", "Redirect for the client app request. Useful when running a separate dev client (Vite)")
+	webPort           = flag.Int("web-port", 8000, "The port to serve web content")
+	indexTmpl         = flag.String("index-tmpl", "missing", "Path to the app .html file")
+	indexJs           = flag.String("index-js", "missing", "Path to the app .js bundle")
+	grpcPort          = flag.Int("grpc-port", 6100, "The port to serve gRPC requests")
+	grpcwebPort       = flag.Int("grpcweb-port", 6101, "The port to serve gRPC-Web requests")
+	universeAddr      = flag.String("universe-addr", "", "The address of the universe server")
 )
 
 func main() {
@@ -87,9 +87,9 @@ func mainWithError() error {
 	corsConfig.AllowAllOrigins = true
 	router.Use(cors.New(corsConfig))
 
-	if *clientRedirect != "" {
+	if *devClientRedirect != "" {
 		router.GET("/", func(c *gin.Context) {
-			c.Redirect(http.StatusMovedPermanently, *clientRedirect)
+			c.Redirect(http.StatusTemporaryRedirect, *devClientRedirect)
 		})
 	} else {
 		router.LoadHTMLFiles(*indexTmpl)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -20,12 +22,13 @@ func main() {
 
 	universeGrpcPort := 6200
 	frontendGrpcPort := 6100
+	vitePort := 5173
 
 	jobs := []*job{
 		{
 			name:  "universe",
-			color: 45,
-			path:  "build/Release/universe_server",
+			color: 214,
+			path:  lookAbsPath("./build/Release/universe_server"),
 			args: []string{
 				fmt.Sprintf("--port=%d", universeGrpcPort),
 			},
@@ -41,14 +44,13 @@ func main() {
 		},
 		{
 			name:  "frontend",
-			color: 91,
-			path:  "build/frontend/frontend_server",
+			color: 24,
+			path:  lookAbsPath("./build/frontend/frontend_server"),
 			args: []string{
 				fmt.Sprintf("--grpc-port=%d", frontendGrpcPort),
 				"--grpcweb-port=6101",
 				fmt.Sprintf("--universe-addr=:%d", universeGrpcPort),
-				"--index-tmpl=src/client/index.tmpl",
-				"--index-js=build/client/client.js",
+				fmt.Sprintf("--dev-client-redirect=http://localhost:%d/client/", vitePort),
 			},
 			buildPath: "cmake",
 			buildArgs: []string{
@@ -58,6 +60,18 @@ func main() {
 			},
 			service: &grpcJobService{
 				port: frontendGrpcPort,
+			},
+		},
+		{
+			name:  "vite",
+			color: 98,
+			path:  lookAbsPath("node"),
+			args: []string{
+				lookAbsPath("./node_modules/vite/bin/vite.js"),
+				fmt.Sprintf("--port=%d", vitePort),
+			},
+			service: &restJobService{
+				port: vitePort,
 			},
 		},
 	}
@@ -96,4 +110,14 @@ func main() {
 		log.Error(err)
 		os.Exit(1)
 	}
+}
+
+func lookAbsPath(path string) string {
+	var err error
+	if resolvedPath, err := exec.LookPath(path); err == nil {
+		if absPath, err := filepath.Abs(resolvedPath); err == nil {
+			return absPath
+		}
+	}
+	panic(fmt.Sprintf("Failed to find absolute path for: %s. Error: %v.", path, err))
 }

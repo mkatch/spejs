@@ -5,16 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/mkacz91/spejs/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type job struct {
@@ -25,22 +20,14 @@ type job struct {
 	buildPath             string
 	buildArgs             []string
 	log                   logger
-	service               jobService
+	service               JobService
 	process               *os.Process
 	exitState             *atomic.Pointer[jobExitState]
 	exited                chan bool
-	status                *pb.JobStatusResponse
+	status                *JobStatus
 	lastStatusRefreshTime time.Time
 	warnings              []error
 	errors                []error
-}
-
-type jobService interface {
-	Attach(context.Context) (*pb.JobAttachResponse, error)
-	Status(context.Context) (*pb.JobStatusResponse, error)
-	Quit(context.Context) error
-	Close() error
-	Port() int
 }
 
 type jobExitState struct {
@@ -49,11 +36,6 @@ type jobExitState struct {
 }
 
 func (job *job) init() error {
-	path, err := filepath.Abs(job.path)
-	if err != nil {
-		return err
-	}
-	job.path = path
 	job.log = log.withPrefix(fmt.Sprintf("[\033[38;5;%dm%8s\033[0m] ", job.color, job.name))
 	return nil
 }
@@ -134,13 +116,13 @@ func (job *job) attach(attemptCount int) (err error) {
 		}
 	}()
 
-	var rsp *pb.JobAttachResponse
-	for attempt := 0; rsp == nil && attempt < attemptCount; attempt++ {
+	var attach *JobAttach
+	for attempt := 0; attach == nil && attempt < attemptCount; attempt++ {
 		if attempt > 0 {
 			time.Sleep(1 * time.Second)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		rsp, err = job.service.Attach(ctx)
+		attach, err = job.service.Attach(ctx)
 		cancel()
 		if err != nil && attemptCount > 1 {
 			job.log.Printf("Attach RPC attempt %d (out of %d) failed: %v", attempt, attemptCount, err)
@@ -151,12 +133,12 @@ func (job *job) attach(attemptCount int) (err error) {
 		return
 	}
 
-	if rsp.Command != job.command() {
-		warn := job.log.Warningf("command different than expected:\n%s", rsp.Command)
+	if attach.Command != job.command() {
+		warn := job.log.Warningf("command different than expected:\n%s", attach.Command)
 		job.warnings = append(job.warnings, warn)
 	}
 
-	job.process, err = findProcess(int(rsp.Pid))
+	job.process, err = findProcess(attach.Pid)
 	if err != nil {
 		return fmt.Errorf("can't find process: %w", err)
 	}
@@ -172,7 +154,7 @@ func (job *job) attach(attemptCount int) (err error) {
 		close(exited)
 	}()
 
-	job.log.Printf("Process attached. PID: %d", rsp.Pid)
+	job.log.Printf("Process attached. PID: %d", attach.Pid)
 	job.refreshStatus()
 	return
 }
@@ -348,56 +330,6 @@ func (job *job) refreshStatus() {
 	} else {
 		job.status = status
 		job.lastStatusRefreshTime = time.Now()
-	}
-}
-
-type grpcJobService struct {
-	port   int
-	conn   *grpc.ClientConn
-	client pb.JobServiceClient
-}
-
-func (s *grpcJobService) Port() int {
-	return s.port
-}
-
-func (s *grpcJobService) Attach(ctx context.Context) (*pb.JobAttachResponse, error) {
-	if s.client == nil {
-		conn, err := grpc.Dial(
-			fmt.Sprintf("localhost:%d", s.port),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
-		if err != nil {
-			return nil, err
-		}
-		s.conn = conn
-		s.client = pb.NewJobServiceClient(conn)
-	}
-
-	return s.client.Attach(ctx, &pb.Empty{})
-}
-
-func (s *grpcJobService) Status(ctx context.Context) (*pb.JobStatusResponse, error) {
-	if s.client == nil {
-		return nil, fmt.Errorf("not attached")
-	}
-	return s.client.Status(ctx, &pb.Empty{})
-}
-
-func (s *grpcJobService) Quit(ctx context.Context) error {
-	if s.client == nil {
-		return fmt.Errorf("not attached")
-	}
-	_, err := s.client.Quit(ctx, &pb.Empty{})
-	return err
-}
-
-func (s *grpcJobService) Close() error {
-	if s.conn != nil {
-		s.client = nil
-		return s.conn.Close()
-	} else {
-		return nil
 	}
 }
 
