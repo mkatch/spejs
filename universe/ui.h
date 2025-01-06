@@ -49,7 +49,7 @@ public:
 private:
 	void on_key(int key, int scancode, int action, int mods);
 	void process_tasks();
-	void process_task(const SkyboxTask &task);
+	void process_skybox_render_task(SkyboxRenderTask &task);
 
 	static void create_cube_vertices(gl::VertexBuffer<SolidVertex> &vertex_buffer);
 };

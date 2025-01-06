@@ -2,42 +2,25 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
 	"github.com/mkacz91/spejs/pb"
-	"github.com/mkacz91/spejs/universe"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type UniverseServiceServerImpl struct {
 	pb.UnimplementedUniverseServiceServer
-	backendConn   *grpc.ClientConn
-	backend       pb.UniverseServiceClient
-	skyboxBackend universe.UniverseSkyboxServiceClient
+	backendConn *grpc.ClientConn
+	backend     pb.UniverseServiceClient
 }
 
-func NewUniverseServiceServer(backendAddr string) (*UniverseServiceServerImpl, error) {
-	backendConn, err := grpc.Dial(
-		backendAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial universe server at %s: %w", backendAddr, err)
-	}
+func NewUniverseServiceServer(backendConn *grpc.ClientConn) *UniverseServiceServerImpl {
 	backend := pb.NewUniverseServiceClient(backendConn)
-	skyboxBacked := universe.NewUniverseSkyboxServiceClient(backendConn)
 	return &UniverseServiceServerImpl{
-		backendConn:   backendConn,
-		backend:       backend,
-		skyboxBackend: skyboxBacked,
-	}, nil
-}
-
-func (s *UniverseServiceServerImpl) Close() {
-	s.backendConn.Close()
+		backendConn: backendConn,
+		backend:     backend,
+	}
 }
 
 func (s *UniverseServiceServerImpl) OpticalSample(c context.Context, req *pb.OpticalSampleRequest) (*pb.OpticalSampleResponse, error) {
@@ -46,18 +29,6 @@ func (s *UniverseServiceServerImpl) OpticalSample(c context.Context, req *pb.Opt
 
 func (s *UniverseServiceServerImpl) Ping(c context.Context, req *pb.PingRequest) (*pb.PingResponse, error) {
 	return &pb.PingResponse{Message: "Go!"}, nil
-}
-
-func (s *UniverseServiceServerImpl) Skybox(ctx context.Context, req *pb.SkyboxRequest) (*pb.SkyboxResponse, error) {
-	assetId := "skybox.qoi"
-	_, err := s.skyboxBackend.Render(ctx, &universe.UniverseSkyboxRenderRequest{
-		DestPath: assetId,
-	})
-	if err == nil {
-		return &pb.SkyboxResponse{AssetId: assetId}, nil
-	} else {
-		return nil, err
-	}
 }
 
 func (s *UniverseServiceServerImpl) PingBackend() {
@@ -70,4 +41,22 @@ func (s *UniverseServiceServerImpl) PingBackend() {
 	} else {
 		log.Println("Universe backend ping response:", rsp.Message)
 	}
+}
+
+type SkyboxServiceServer struct {
+	pb.UnimplementedSkyboxServiceServer
+	backend pb.SkyboxServiceClient
+}
+
+func (s *SkyboxServiceServer) Render(ctx context.Context, req *pb.SkyboxRenderRequest) (*pb.SkyboxRenderResponse, error) {
+	return s.backend.Render(ctx, req)
+}
+
+type TaskServiceServer struct {
+	pb.UnimplementedTaskServiceServer
+	backend pb.TaskServiceClient
+}
+
+func (s *TaskServiceServer) Poll(ctx context.Context, req *pb.TaskPollRequest) (*pb.TaskPollResponse, error) {
+	return s.backend.Poll(ctx, req)
 }

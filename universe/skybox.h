@@ -2,15 +2,27 @@
 
 #include "common.h"
 
-#include <universe/proto/skybox.grpc.pb.h>
+#include <proto/skybox.grpc.pb.h>
 
-class TaskQueue;
+#include "math.h"
+#include "task.h"
 
-class UniverseSkyboxServiceServer final : public UniverseSkyboxService::Service {
+class SkyboxServiceServer final : public SkyboxService::Service {
 	TaskQueue &tasks;
 
 public:
-	UniverseSkyboxServiceServer(TaskQueue &tasks);
+	SkyboxServiceServer(TaskQueue &tasks);
 
-	grpc::Status Render(grpc::ServerContext *ctx, const UniverseSkyboxRenderRequest *req, UniverseSkyboxRenderResponse *rsp) override;
+	grpc::Status Render(grpc::ServerContext *ctx, const SkyboxRenderRequest *req, SkyboxRenderResponse *rsp) override;
+};
+
+class SkyboxRenderTask : public Task {
+	glm::vec3 position;
+
+public:
+	SkyboxRenderResult result;
+
+	SkyboxRenderTask(glm::vec3 position);
+
+	void write_result(TaskResult *result) override;
 };

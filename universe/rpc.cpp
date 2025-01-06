@@ -6,7 +6,8 @@
 RpcServer::RpcServer(int argc, char **argv, TaskQueue &tasks)
 		: job_service(argc, argv)
 		, skybox_service(tasks)
-		, universe_service(tasks) { }
+		, universe_service(tasks)
+		, task_service(tasks) { }
 
 void RpcServer::start(const string &addr) {
 	grpc::ServerBuilder builder;
@@ -14,6 +15,7 @@ void RpcServer::start(const string &addr) {
 	builder.RegisterService(&job_service);
 	builder.RegisterService(&universe_service);
 	builder.RegisterService(&skybox_service);
+	builder.RegisterService(&task_service);
 
 	server = builder.BuildAndStart();
 	if (!server) {

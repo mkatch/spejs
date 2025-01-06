@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+option go_package = "github.com/mkatch/spejs/pb";
+
+service SkyboxService {
+	rpc Render (SkyboxRenderRequest) returns (SkyboxRenderResponse) {}
+}
+
+message SkyboxRenderRequest {
+	repeated float position = 1;
+}
+
+message SkyboxRenderResponse { }
+
+message SkyboxRenderResult {
+	string path = 1;
+}

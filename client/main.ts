@@ -1,9 +1,13 @@
 import * as foo from './foo';
-import { OpticalSampleRequest, PingRequest, SkyboxRequest } from '@proto/universe_pb';
+import { OpticalSampleRequest, PingRequest } from '@proto/universe_pb';
 import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
 import { Matrix3, Matrix4 } from 'three';
 import { qoiDecode } from './qoi';
+import { SkyboxServiceClient } from '@proto/SkyboxServiceClientPb';
+import { TaskServiceClient } from '@proto/TaskServiceClientPb';
+import { SkyboxRenderRequest, SkyboxRenderResult } from '@proto/skybox_pb';
+import { TaskPollRequest, TaskResult } from '@proto/task_pb';
 
 let name: string = 'World';
 foo.sayHello(name);
@@ -22,7 +26,10 @@ async function main() {
   const coordsInput = document.getElementById('coords-input') as HTMLInputElement;
   const lookButton = document.getElementById('look-button') as HTMLButtonElement;
 
-  const universeService = new UniverseServiceClient(`http://${window.location.hostname}:6101`, undefined,);
+  const frontendUrl = `http://${window.location.hostname}:6101`;
+  const universeService = new UniverseServiceClient(frontendUrl, undefined);
+  const skyboxService = new SkyboxServiceClient(frontendUrl, undefined);
+  const taskService = new TaskServiceClient(frontendUrl, undefined);
 
   pingButton.addEventListener('click', async () => {
     try {
@@ -52,11 +59,18 @@ async function main() {
     }
   });
 
+  const skyboxRenderRequest = new SkyboxRenderRequest();
+  skyboxRenderRequest.setPositionList([0, 0, 0]);
+  const skyboxRenderResponse = await skyboxService.render(skyboxRenderRequest)
+  console.log("Skybox render response: ", skyboxRenderResponse.toObject())
+
 
   let env: THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> | undefined //= createEnvMesh();
-  universeService.skybox(new SkyboxRequest()).then(async (rsp) => {
-    console.log(rsp.toObject())
-    const frsp = await fetch(`http://localhost:8000/static/${rsp.getAssetId()}`)
+
+  async function applySkyboxRenderResult(result: SkyboxRenderResult) {
+    console.log("Applying skybox render result: ", result.toObject())
+
+    const frsp = await fetch(`http://localhost:8000/static/${result.getPath()}`)
     const d = await frsp.arrayBuffer()
     const q = qoiDecode(d, { outputChannels: 4 })
     console.log("skybox", q.width, 'x', q.height)
@@ -82,13 +96,33 @@ async function main() {
     envMap.needsUpdate = true
     env = createEnvMesh(envMap)
     scene.add(env)
-    // TEST_CUBE_MAP.images[0] = t
-    // if (skyboxMaterial) {
-    //   skyboxMaterial.needsUpdate = true
-    //   console.log('written')
-    //   console.log(t)
-    // }
-  })
+  }
+
+  async function pollTasks() {
+    try {
+      console.log("Polling tasks...")
+      const req = new TaskPollRequest()
+      const rsp = await taskService.poll(req)
+      for (const result of rsp.getResultsList()) {
+        switch (result.getResultCase()) {
+          case TaskResult.ResultCase.SKYBOX_RENDER:
+            applySkyboxRenderResult(result.getSkyboxRender()!)
+            break
+          default:
+            console.error("Unknown result type: ", result.getResultCase())
+        }
+      }
+    } catch (e) {
+      console.log(e);
+    }
+
+    finally {
+      setTimeout(pollTasks, 1000)
+    }
+  }
+  setTimeout(pollTasks, 1000)
+
+
 
   const width = 800, height = 600;
   const renderer = new THREE.WebGLRenderer({ antialias: true });

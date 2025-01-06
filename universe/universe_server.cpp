@@ -10,7 +10,7 @@
 #include "common.h"
 
 #include "rpc.h"
-#include "tasks.h"
+#include "task.h"
 #include "ui.h"
 
 using std::cout, std::endl;

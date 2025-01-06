@@ -15,6 +15,7 @@ import (
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/mkacz91/spejs/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // TODO: I don't like passing index.html and index.js as flags. Hardcoding also
@@ -60,17 +61,32 @@ func mainWithError() error {
 	}
 	defer webLis.Close()
 
+	universeConn, err := grpc.Dial(
+		*universeAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to dial universe server at %s: %w", *universeAddr, err)
+	}
+	defer universeConn.Close()
+
 	grpcServer := grpc.NewServer()
 
-	universeServiceServer, err := NewUniverseServiceServer(*universeAddr)
-	if err != nil {
-		return fmt.Errorf("unable to create UniverseService server: %w", err)
-	}
-	defer universeServiceServer.Close()
+	universeServiceServer := NewUniverseServiceServer(universeConn)
 	pb.RegisterUniverseServiceServer(grpcServer, universeServiceServer)
 
 	jobServiceServer := NewJobServiceServer()
 	pb.RegisterJobServiceServer(grpcServer, jobServiceServer)
+
+	taskServiceServer := TaskServiceServer{
+		backend: pb.NewTaskServiceClient(universeConn),
+	}
+	pb.RegisterTaskServiceServer(grpcServer, &taskServiceServer)
+
+	skyboxServiceServer := SkyboxServiceServer{
+		backend: pb.NewSkyboxServiceClient(universeConn),
+	}
+	pb.RegisterSkyboxServiceServer(grpcServer, &skyboxServiceServer)
 
 	log.Println("Starting gRPC server on ", grpcLis.Addr())
 	wg.Add(1)

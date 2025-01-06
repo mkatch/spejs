@@ -4,7 +4,7 @@
 
 #include "rpc.h"
 #include "shaders.h"
-#include "tasks.h"
+#include "task.h"
 #include "ui.h"
 
 // GLFW must be after OpenGL
@@ -213,13 +213,20 @@ void UI::on_key(int key, int scancode, int action, int mods) {
 }
 
 void UI::process_tasks() {
-	Task task;
-	if (tasks.pop(task)) {
-		switch (task.index()) {
-			case 1:
-				return process_task(std::get<1>(task));
-		}
+	std::unique_ptr<Task> task = tasks.pop();
+	if (!task) {
+		return;
 	}
+	switch (task->type) {
+		case TaskType::kSkyboxRender:
+			process_skybox_render_task(*static_cast<SkyboxRenderTask *>(task.get()));
+			break;
+
+		default:
+			std::cerr << "Unimplemented task type: " << task->type << std::endl;
+			break;
+	}
+	tasks.done(std::move(task));
 }
 
 // TODO: The order is by trial & error. I have no idea why it is in this
@@ -234,7 +241,7 @@ const glm::mat4 LOOKATS[] = {
 	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, +1), glm::vec3(0, +1, 0)),
 };
 
-void UI::process_task(const SkyboxTask &task) {
+void UI::process_skybox_render_task(SkyboxRenderTask &task) {
 	glBindFramebuffer(GL_FRAMEBUFFER, skybox_framebuffer);
 	glViewport(0, 0, SKYBOX_SIZE, SKYBOX_SIZE);
 
@@ -260,8 +267,10 @@ void UI::process_task(const SkyboxTask &task) {
 				skybox_pixels + i * SKYBOX_SIZE * SKYBOX_SIZE * 3);
 	}
 
+	std::string path = "skybox.qoi";
 	qoi_desc desc = {(unsigned int)SKYBOX_SIZE, 6 * (unsigned int)SKYBOX_SIZE, 3, QOI_LINEAR};
-	qoi_write(task.asset_id.c_str(), skybox_pixels, &desc);
+	qoi_write(path.c_str(), skybox_pixels, &desc);
+	task.result.set_path(path);
 }
 
 void UI::create_cube_vertices(gl::VertexBuffer<SolidVertex> &vertex_buffer) {
