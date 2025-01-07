@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { Matrix3, Matrix4, Vector3, Quaternion } from 'three';
+import { Matrix3, Matrix4, Vector2, Vector3, Quaternion } from 'three';
 import { qoiDecode } from './qoi';
 import { SkyboxServiceClient } from '@proto/SkyboxServiceClientPb';
 import { TaskServiceClient } from '@proto/TaskServiceClientPb';
 import { SkyboxRenderRequest, SkyboxRenderResult } from '@proto/skybox_pb';
 import { TaskPollRequest, TaskResult } from '@proto/task_pb';
+import { max } from 'three/examples/jsm/nodes/Nodes.js';
 
 const canvasContainerElement = document.getElementById('canvas-container') as HTMLDivElement
 
@@ -15,6 +16,8 @@ const taskService = new TaskServiceClient(frontendUrl, undefined);
 const skyboxRenderRequest = new SkyboxRenderRequest();
 skyboxRenderRequest.setPositionList([0, 0, 0]);
 void skyboxService.render(skyboxRenderRequest)
+
+let time = 0
 
 let env: THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> | undefined //= createEnvMesh();
 
@@ -86,10 +89,20 @@ const nearPyramid = new Matrix3()
 let drag: {
 	startQuaternion: Quaternion,
 	startRay: Vector3,
+	prevRay: Vector3,
+	prevTime: number,
 	endRay: Vector3,
+	endTime: number,
+} | undefined = undefined
+let dragMomentum: {
+	axis: Vector3,
+	startVelocity: number,
+	startQuaternion: Quaternion,
+	startTime: number,
 } | undefined = undefined
 const onPointer = (e: PointerEvent) => {
 	if (e.buttons & 1) {
+		dragMomentum = undefined
 		const ray = new Vector3(
 			2 * e.offsetX / canvasHeight - 1,
 			1 - 2 * e.offsetY / canvasHeight,
@@ -98,13 +111,45 @@ const onPointer = (e: PointerEvent) => {
 		if (!drag) {
 			drag = {
 				startQuaternion: camera.quaternion.clone(),
-				startRay: ray.clone(),
-				endRay: ray.clone(),
+				startRay: ray,
+				prevRay: ray,
+				prevTime: time,
+				endRay: ray,
+				endTime: time,
 			}
 		} else {
-			drag.endRay = ray.clone()
+			if (time - drag.endTime > 0.005) {
+				drag.prevRay = drag.endRay
+				drag.prevTime = drag.endTime
+			}
+			drag.endRay = ray
+			drag.endTime = time
 		}
-	} else if (drag) {
+	}
+
+	if (drag) {
+		const axis = new Vector3().crossVectors(drag.startRay, drag.endRay).normalize()
+		const angle = drag.startRay.angleTo(drag.endRay)
+		const deltaQuaternion = new Quaternion().setFromAxisAngle(axis, -angle)
+		camera.setRotationFromQuaternion(drag.startQuaternion.clone().multiply(deltaQuaternion))
+	}
+
+	if (drag && !(e.buttons & 1)) {
+		const lastAngle = drag.prevRay.angleTo(drag.endRay)
+		let angularVelocity = lastAngle / (drag.endTime - drag.prevTime)
+		if (Math.abs(angularVelocity) < 0.05) {
+			dragMomentum = undefined
+		} else {
+			if (Math.abs(angularVelocity) > 6) {
+				angularVelocity = 6 * Math.sign(angularVelocity)
+			}
+			dragMomentum = {
+				startQuaternion: camera.quaternion.clone(),
+				axis: new Vector3().crossVectors(drag.prevRay, drag.endRay).normalize(),
+				startVelocity: angularVelocity,
+				startTime: time,
+			}
+		}
 		drag = undefined
 	}
 }
@@ -137,11 +182,23 @@ onCanvasContainerResize()
 new ResizeObserver(onCanvasContainerResize).observe(canvasContainerElement)
 
 function draw() {
-	if (drag) {
-		const axis = new Vector3().crossVectors(drag.startRay, drag.endRay).normalize()
-		const angle = drag.startRay.angleTo(drag.endRay)
-		const deltaQuaternion = new Quaternion().setFromAxisAngle(axis, -angle)
-		camera.setRotationFromQuaternion(drag.startQuaternion.clone().multiply(deltaQuaternion))
+	if (dragMomentum) {
+		if (dragMomentum.startTime === undefined) {
+			dragMomentum.startTime = time
+			dragMomentum.startQuaternion = camera.quaternion.clone()
+		}
+
+		const accel = -4 * Math.sign(dragMomentum.startVelocity)
+		const maxDuration = -dragMomentum.startVelocity / accel
+		const dt = Math.min(maxDuration, time - dragMomentum.startTime)
+
+		const angle = dt * dragMomentum.startVelocity + 0.5 * accel * dt ** 2
+		const deltaQuaternion = new Quaternion().setFromAxisAngle(dragMomentum.axis, -angle)
+		camera.setRotationFromQuaternion(dragMomentum.startQuaternion.clone().multiply(deltaQuaternion))
+
+		if (dt >= maxDuration) {
+			dragMomentum = undefined
+		}
 	}
 
 	if (env) {
@@ -154,7 +211,10 @@ function draw() {
 	renderer.render(scene, camera)
 }
 
-renderer.setAnimationLoop(draw)
+renderer.setAnimationLoop((t) => {
+	time = t / 1000
+	draw()
+})
 
 canvasContainerElement.appendChild(renderer.domElement);
 
