@@ -1,235 +1,229 @@
-import * as foo from './foo';
-import { OpticalSampleRequest, PingRequest } from '@proto/universe_pb';
-import { UniverseServiceClient } from '@proto/UniverseServiceClientPb';
 import * as THREE from 'three';
-import { Matrix3, Matrix4 } from 'three';
+import { Matrix3, Matrix4, Vector3, Quaternion } from 'three';
 import { qoiDecode } from './qoi';
 import { SkyboxServiceClient } from '@proto/SkyboxServiceClientPb';
 import { TaskServiceClient } from '@proto/TaskServiceClientPb';
 import { SkyboxRenderRequest, SkyboxRenderResult } from '@proto/skybox_pb';
 import { TaskPollRequest, TaskResult } from '@proto/task_pb';
 
-let name: string = 'World';
-foo.sayHello(name);
+const canvasContainerElement = document.getElementById('canvas-container') as HTMLDivElement
 
-async function main() {
-  document.body.innerHTML = `
-      <h1>Spejs</h1>
-  
-      <button id="ping-button">Ping</button>
-      <label for="coords-input">Coordinates:</label>
-      <input type="text" id="coords-input">
-  
-      <button id="look-button">Look</button>
-    `;
-  const pingButton = document.getElementById('ping-button') as HTMLButtonElement;
-  const coordsInput = document.getElementById('coords-input') as HTMLInputElement;
-  const lookButton = document.getElementById('look-button') as HTMLButtonElement;
+const frontendUrl = `http://${window.location.hostname}:6101`;
+const skyboxService = new SkyboxServiceClient(frontendUrl, undefined);
+const taskService = new TaskServiceClient(frontendUrl, undefined);
 
-  const frontendUrl = `http://${window.location.hostname}:6101`;
-  const universeService = new UniverseServiceClient(frontendUrl, undefined);
-  const skyboxService = new SkyboxServiceClient(frontendUrl, undefined);
-  const taskService = new TaskServiceClient(frontendUrl, undefined);
+const skyboxRenderRequest = new SkyboxRenderRequest();
+skyboxRenderRequest.setPositionList([0, 0, 0]);
+void skyboxService.render(skyboxRenderRequest)
 
-  pingButton.addEventListener('click', async () => {
-    try {
-      const request = new PingRequest();
-      const response = await universeService.ping(request);
-      console.log(response);
-    } catch (e) {
-      console.error('===ERROR: ', e)
-    }
-  });
+let env: THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> | undefined //= createEnvMesh();
 
-  lookButton.addEventListener('click', async () => {
-    const coords = coordsInput.value.split(',').map(s => parseInt(s));
-    if (coords.length !== 2 || isNaN(coords[0]!) || isNaN(coords[1]!)) {
-      console.error(`Invalid coodrinate input "${coordsInput.value}"`);
-      return;
-    }
+async function applySkyboxRenderResult(result: SkyboxRenderResult) {
+	console.log("Applying skybox render result: ", result.toObject())
 
-    const request = new OpticalSampleRequest();
-    request.setX(coords[0]!);
-    request.setY(coords[1]!);
-    try {
-      const response = await universeService.opticalSample(request);
-      console.log(response.toObject());
-    } catch (e) {
-      console.error('===ERROR: ', e);
-    }
-  });
+	const assetUrl = `http://${window.location.hostname}:8000/static/${result.getPath()}`;
+	const frsp = await fetch(assetUrl)
+	const d = await frsp.arrayBuffer()
+	const q = qoiDecode(d, { outputChannels: 4 })
+	console.log("skybox", q.width, 'x', q.height)
+	const images = new Array<THREE.DataTexture>(6)
+	const ii = new Uint8Array(q.data)
+	for (let i = 0; i < images.length; ++i) {
+		const s = q.width * q.width * 4
+		const ab = new Uint8Array(s)
 
-  const skyboxRenderRequest = new SkyboxRenderRequest();
-  skyboxRenderRequest.setPositionList([0, 0, 0]);
-  const skyboxRenderResponse = await skyboxService.render(skyboxRenderRequest)
-  console.log("Skybox render response: ", skyboxRenderResponse.toObject())
-
-
-  let env: THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> | undefined //= createEnvMesh();
-
-  async function applySkyboxRenderResult(result: SkyboxRenderResult) {
-    console.log("Applying skybox render result: ", result.toObject())
-
-    const frsp = await fetch(`http://localhost:8000/static/${result.getPath()}`)
-    const d = await frsp.arrayBuffer()
-    const q = qoiDecode(d, { outputChannels: 4 })
-    console.log("skybox", q.width, 'x', q.height)
-    const images = new Array<THREE.DataTexture>(6)
-    const ii = new Uint8Array(q.data)
-    for (let i = 0; i < images.length; ++i) {
-      const s = q.width * q.width * 4
-      const ab = new Uint8Array(s)
-
-      for (let r = 0; r < q.width; ++r) {
-        const i0 = (i + 1) * s - (r + 1) * q.width * 4
-        const o0 = r * q.width * 4
-        for (let c = 0; c < q.width * 4; ++c) {
-          ab[o0 + c] = ii[i0 + c]
-        }
-      }
-      const t = new THREE.DataTexture(ab, q.width, q.width, THREE.RGBAFormat)
-      t.generateMipmaps = true
-      t.needsUpdate = true
-      images[i] = t
-    }
-    const envMap = new THREE.CubeTexture(images)
-    envMap.needsUpdate = true
-    env = createEnvMesh(envMap)
-    scene.add(env)
-  }
-
-  async function pollTasks() {
-    try {
-      console.log("Polling tasks...")
-      const req = new TaskPollRequest()
-      const rsp = await taskService.poll(req)
-      for (const result of rsp.getResultsList()) {
-        switch (result.getResultCase()) {
-          case TaskResult.ResultCase.SKYBOX_RENDER:
-            applySkyboxRenderResult(result.getSkyboxRender()!)
-            break
-          default:
-            console.error("Unknown result type: ", result.getResultCase())
-        }
-      }
-    } catch (e) {
-      console.log(e);
-    }
-
-    finally {
-      setTimeout(pollTasks, 1000)
-    }
-  }
-  setTimeout(pollTasks, 1000)
-
-
-
-  const width = 800, height = 600;
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(width, height);
-
-  const camera = new THREE.PerspectiveCamera(70, width / height, 0.01, 10);
-  camera.position.z = 1;
-  const nearPyramid = new Matrix3(
-    camera.aspect, 0, 0,
-    0, 1, 0,
-    0, 0, 1 / Math.tan(camera.fov / 360 * Math.PI),
-  );
-
-  const scene = new THREE.Scene();
-
-  renderer.domElement.addEventListener('mousemove', e => {
-    const r = (e.target as HTMLElement).getBoundingClientRect();
-    const mx = e.offsetX / r.width;
-    const my = e.offsetY / r.height;
-
-    if (!env) {
-      return
-    }
-    (env.material.uniforms.camera!.value as Matrix3)
-      .setFromMatrix4(new Matrix4().makeRotationFromEuler(new THREE.Euler(
-        (my - 0.5) * Math.PI,
-        (mx - 0.5) * 2 * Math.PI,
-        0,
-        'YXZ',
-      )))
-      .multiply(nearPyramid);
-  });
-
-  renderer.setAnimationLoop(_ => {
-    renderer.render(scene, camera);
-  });
-
-  document.body.appendChild(renderer.domElement);
+		for (let r = 0; r < q.width; ++r) {
+			const i0 = (i + 1) * s - (r + 1) * q.width * 4
+			const o0 = r * q.width * 4
+			for (let c = 0; c < q.width * 4; ++c) {
+				ab[o0 + c] = ii[i0 + c]
+			}
+		}
+		const t = new THREE.DataTexture(ab, q.width, q.width, THREE.RGBAFormat)
+		t.generateMipmaps = true
+		t.needsUpdate = true
+		images[i] = t
+	}
+	const envMap = new THREE.CubeTexture(images)
+	envMap.needsUpdate = true
+	env = createEnvMesh(envMap)
+	scene.add(env)
 }
 
+async function pollTasks() {
+	try {
+		console.log("Polling tasks...")
+		const req = new TaskPollRequest()
+		const rsp = await taskService.poll(req)
+		for (const result of rsp.getResultsList()) {
+			switch (result.getResultCase()) {
+				case TaskResult.ResultCase.SKYBOX_RENDER:
+					applySkyboxRenderResult(result.getSkyboxRender()!)
+					break
+				default:
+					console.error("Unknown result type: ", result.getResultCase())
+			}
+		}
+	} catch (e) {
+		console.log(e);
+	}
+
+	finally {
+		setTimeout(pollTasks, 1000)
+	}
+}
+setTimeout(pollTasks, 1000)
+
+const scene = new THREE.Scene();
+
+let canvasWidth = NaN
+let canvasHeight = NaN
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 10);
+camera.position.z = 1;
+const nearPyramid = new Matrix3()
+
+let drag: {
+	startQuaternion: Quaternion,
+	startRay: Vector3,
+	endRay: Vector3,
+} | undefined = undefined
+const onPointer = (e: PointerEvent) => {
+	if (e.buttons & 1) {
+		const ray = new Vector3(
+			2 * e.offsetX / canvasHeight - 1,
+			1 - 2 * e.offsetY / canvasHeight,
+			1 / Math.tan(camera.fov / 360 * Math.PI)
+		)
+		if (!drag) {
+			drag = {
+				startQuaternion: camera.quaternion.clone(),
+				startRay: ray.clone(),
+				endRay: ray.clone(),
+			}
+		} else {
+			drag.endRay = ray.clone()
+		}
+	} else if (drag) {
+		drag = undefined
+	}
+}
+for (const type of ['pointerdown', 'pointermove', 'pointerup'] as const) {
+	renderer.domElement.addEventListener(type, onPointer)
+}
+
+function onCanvasContainerResize() {
+	const width = Math.max(64, canvasContainerElement.offsetWidth)
+	const height = Math.max(64, canvasContainerElement.offsetHeight)
+	if (width === canvasWidth && height === canvasHeight) {
+		return
+	}
+
+	canvasWidth = width
+	canvasHeight = height
+	renderer.setSize(width, height)
+	camera.aspect = width / height
+	camera.updateProjectionMatrix()
+
+	nearPyramid.set(
+		camera.aspect, 0, 0,
+		0, 1, 0,
+		0, 0, 1 / Math.tan(camera.fov / 360 * Math.PI),
+	)
+
+	draw()
+}
+onCanvasContainerResize()
+new ResizeObserver(onCanvasContainerResize).observe(canvasContainerElement)
+
+function draw() {
+	if (drag) {
+		const axis = new Vector3().crossVectors(drag.startRay, drag.endRay).normalize()
+		const angle = drag.startRay.angleTo(drag.endRay)
+		const deltaQuaternion = new Quaternion().setFromAxisAngle(axis, -angle)
+		camera.setRotationFromQuaternion(drag.startQuaternion.clone().multiply(deltaQuaternion))
+	}
+
+	if (env) {
+		const envCamera = env.material.uniforms.camera!.value as Matrix3
+		envCamera
+			.setFromMatrix4(new Matrix4().makeRotationFromQuaternion(camera.quaternion))
+			.multiply(nearPyramid)
+	}
+
+	renderer.render(scene, camera)
+}
+
+renderer.setAnimationLoop(draw)
+
+canvasContainerElement.appendChild(renderer.domElement);
+
+
 const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
-  const c = document.createElement('canvas').getContext('2d')!;
-  const faceSize = 32;
-  c.canvas.width = faceSize;
-  c.canvas.height = faceSize;
-  c.font = `bold ${faceSize * 0.5}px monospace`;
-  c.textAlign = 'center';
-  c.textBaseline = 'middle';
-  const faces = [
-    ['#F00', '+X'],
-    ['#F80', '-X'],
-    ['#0A0', '+Y'],
-    ['#8A0', '-Y'],
-    ['#00F', '+Z'],
-    ['#80F', '-Z'],
-  ].map(([color, text]) => {
-    c.fillStyle = color!;
-    c.fillRect(0, 0, faceSize, faceSize);
-    c.fillStyle = 'white';
-    c.fillText(text!, faceSize / 2, faceSize / 2);
-    return c.canvas.toDataURL();
-  });
-  return new THREE.CubeTextureLoader().load(faces)
+	const c = document.createElement('canvas').getContext('2d')!;
+	const faceSize = 32;
+	c.canvas.width = faceSize;
+	c.canvas.height = faceSize;
+	c.font = `bold ${faceSize * 0.5}px monospace`;
+	c.textAlign = 'center';
+	c.textBaseline = 'middle';
+	const faces = [
+		['#F00', '+X'],
+		['#F80', '-X'],
+		['#0A0', '+Y'],
+		['#8A0', '-Y'],
+		['#00F', '+Z'],
+		['#80F', '-Z'],
+	].map(([color, text]) => {
+		c.fillStyle = color!;
+		c.fillRect(0, 0, faceSize, faceSize);
+		c.fillStyle = 'white';
+		c.fillText(text!, faceSize / 2, faceSize / 2);
+		return c.canvas.toDataURL();
+	});
+	return new THREE.CubeTextureLoader().load(faces)
 })();
 
 function createEnvMesh(envMap: THREE.CubeTexture): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> {
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-    -1, -1, 1, 1, -1, 1,
-    -1, -1, 1, -1, 1, 1,
-  ]), 2));
-  // Set bounding sphere to avoid it being computed fro position, which would
-  // fail. Otherwise unused.
-  geometry.boundingSphere = new THREE.Sphere();
+	const geometry = new THREE.BufferGeometry()
+	geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+		-1, -1, 1, 1, -1, 1,
+		-1, -1, 1, -1, 1, 1,
+	]), 2));
+	// Set bounding sphere to avoid it being computed fro position, which would
+	// fail. Otherwise unused.
+	geometry.boundingSphere = new THREE.Sphere();
 
-  const material = new THREE.RawShaderMaterial({
-    uniforms: {
-      camera: { value: new Matrix3() },
-      envMap: { value: envMap },
-      axisMap: { value: TEST_CUBE_MAP },
-    },
-    vertexShader: `
+	const material = new THREE.RawShaderMaterial({
+		uniforms: {
+			camera: { value: new Matrix3() },
+			envMap: { value: envMap },
+			axisMap: { value: TEST_CUBE_MAP },
+		},
+		vertexShader: `
       uniform mat3 camera;
       attribute vec2 position;
       varying vec3 envCoords;
-  void main() {
-    envCoords = camera * vec3(position, 1.0);
-    gl_Position = vec4(position, 0.0, 1.0);
-  }
+      void main() {
+        envCoords = camera * vec3(position, 1.0);
+        gl_Position = vec4(position, 0.0, 1.0);
+      }
   `,
-    fragmentShader: `
+		fragmentShader: `
       uniform samplerCube envMap;
       uniform samplerCube axisMap;
       varying highp vec3 envCoords;
-  void main() {
-    gl_FragColor =
-      0.9 * textureCube(envMap, envCoords) +
-      0.1 * textureCube(axisMap, envCoords);
-  }
+      void main() {
+        gl_FragColor =
+          0.9 * textureCube(envMap, envCoords) +
+          0.1 * textureCube(axisMap, envCoords);
+      }
   `,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.frustumCulled = false;
-  mesh.renderOrder = -1;
-  return mesh;
+		depthTest: false,
+		depthWrite: false,
+	});
+	const mesh = new THREE.Mesh(geometry, material);
+	mesh.frustumCulled = false;
+	mesh.renderOrder = -1;
+	return mesh;
 }
-
-main();
