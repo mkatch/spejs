@@ -1,11 +1,10 @@
 import * as THREE from 'three';
-import { Matrix3, Matrix4, Vector2, Vector3, Quaternion } from 'three';
+import { Matrix3, Matrix4, Vector3, Quaternion } from 'three';
 import { qoiDecode } from './qoi';
 import { SkyboxServiceClient } from '@proto/SkyboxServiceClientPb';
 import { TaskServiceClient } from '@proto/TaskServiceClientPb';
 import { SkyboxRenderRequest, SkyboxRenderResult } from '@proto/skybox_pb';
 import { TaskPollRequest, TaskResult } from '@proto/task_pb';
-import { max } from 'three/examples/jsm/nodes/Nodes.js';
 
 const canvasContainerElement = document.getElementById('canvas-container') as HTMLDivElement
 
@@ -19,7 +18,32 @@ void skyboxService.render(skyboxRenderRequest)
 
 let time = 0
 
-let env: THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> | undefined //= createEnvMesh();
+const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
+	const c = document.createElement('canvas').getContext('2d')!;
+	const faceSize = 32;
+	c.canvas.width = faceSize;
+	c.canvas.height = faceSize;
+	c.font = `bold ${faceSize * 0.5}px monospace`;
+	c.textAlign = 'center';
+	c.textBaseline = 'middle';
+	const faces = [
+		['#F00', '+X'],
+		['#F80', '-X'],
+		['#0A0', '+Y'],
+		['#8A0', '-Y'],
+		['#00F', '+Z'],
+		['#80F', '-Z'],
+	].map(([color, text]) => {
+		c.fillStyle = color!;
+		c.fillRect(0, 0, faceSize, faceSize);
+		c.fillStyle = 'white';
+		c.fillText(text!, faceSize / 2, faceSize / 2);
+		return c.canvas.toDataURL();
+	});
+	return new THREE.CubeTextureLoader().load(faces)
+})()
+
+const env = createEnvMesh()
 
 async function applySkyboxRenderResult(result: SkyboxRenderResult) {
 	console.log("Applying skybox render result: ", result.toObject())
@@ -29,28 +53,45 @@ async function applySkyboxRenderResult(result: SkyboxRenderResult) {
 	const d = await frsp.arrayBuffer()
 	const q = qoiDecode(d, { outputChannels: 4 })
 	console.log("skybox", q.width, 'x', q.height)
-	const images = new Array<THREE.DataTexture>(6)
 	const ii = new Uint8Array(q.data)
-	for (let i = 0; i < images.length; ++i) {
-		const s = q.width * q.width * 4
-		const ab = new Uint8Array(s)
+	const s = q.width * q.width * 4
 
+	const idatas = (() => {
+		const existing = env.material.uniforms.envMap!.value
+		if (existing instanceof THREE.CubeTexture) {
+			const textures = (existing.images as THREE.DataTexture[])
+			if (textures.every(t => t.image.data.length === s)) {
+				for (const t of textures) {
+					t.needsUpdate = true
+				}
+				existing.needsUpdate = true
+				return textures.map(t => t.image.data)
+			}
+		}
+
+		const textures = new Array<THREE.DataTexture>(6)
+		for (const [i, _] of textures.entries()) {
+			const t = new THREE.DataTexture(new Uint8ClampedArray(s), q.width, q.width, THREE.RGBAFormat)
+			textures[i] = t
+		}
+		const envMap = new THREE.CubeTexture(textures)
+		envMap.generateMipmaps = true
+		envMap.needsUpdate = true
+		env.material.uniforms.envMap!.value = envMap
+		return textures.map(t => t.image.data)
+	})()
+
+	for (const [i, idata] of idatas.entries()) {
 		for (let r = 0; r < q.width; ++r) {
 			const i0 = (i + 1) * s - (r + 1) * q.width * 4
 			const o0 = r * q.width * 4
 			for (let c = 0; c < q.width * 4; ++c) {
-				ab[o0 + c] = ii[i0 + c]
+				idata[o0 + c] = ii[i0 + c]
 			}
 		}
-		const t = new THREE.DataTexture(ab, q.width, q.width, THREE.RGBAFormat)
-		t.generateMipmaps = true
-		t.needsUpdate = true
-		images[i] = t
 	}
-	const envMap = new THREE.CubeTexture(images)
-	envMap.needsUpdate = true
-	env = createEnvMesh(envMap)
-	scene.add(env)
+
+	env.material.needsUpdate = true
 }
 
 async function pollTasks() {
@@ -78,6 +119,7 @@ async function pollTasks() {
 setTimeout(pollTasks, 1000)
 
 const scene = new THREE.Scene();
+scene.add(env)
 
 let canvasWidth = NaN
 let canvasHeight = NaN
@@ -156,6 +198,16 @@ const onPointer = (e: PointerEvent) => {
 for (const type of ['pointerdown', 'pointermove', 'pointerup'] as const) {
 	renderer.domElement.addEventListener(type, onPointer)
 }
+renderer.domElement.addEventListener("dblclick", () => {
+	const step = camera.getWorldDirection(new Vector3()).multiplyScalar(8)
+	const { x, y, z } = camera.position.add(step)
+	camera.updateMatrix()
+	console.log(camera.position)
+
+	const skyboxRenderRequest = new SkyboxRenderRequest();
+	skyboxRenderRequest.setPositionList([x, y, z]);
+	void skyboxService.render(skyboxRenderRequest)
+})
 
 function onCanvasContainerResize() {
 	const width = Math.max(64, canvasContainerElement.offsetWidth)
@@ -218,33 +270,7 @@ renderer.setAnimationLoop((t) => {
 
 canvasContainerElement.appendChild(renderer.domElement);
 
-
-const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
-	const c = document.createElement('canvas').getContext('2d')!;
-	const faceSize = 32;
-	c.canvas.width = faceSize;
-	c.canvas.height = faceSize;
-	c.font = `bold ${faceSize * 0.5}px monospace`;
-	c.textAlign = 'center';
-	c.textBaseline = 'middle';
-	const faces = [
-		['#F00', '+X'],
-		['#F80', '-X'],
-		['#0A0', '+Y'],
-		['#8A0', '-Y'],
-		['#00F', '+Z'],
-		['#80F', '-Z'],
-	].map(([color, text]) => {
-		c.fillStyle = color!;
-		c.fillRect(0, 0, faceSize, faceSize);
-		c.fillStyle = 'white';
-		c.fillText(text!, faceSize / 2, faceSize / 2);
-		return c.canvas.toDataURL();
-	});
-	return new THREE.CubeTextureLoader().load(faces)
-})();
-
-function createEnvMesh(envMap: THREE.CubeTexture): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> {
+function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMaterial> {
 	const geometry = new THREE.BufferGeometry()
 	geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
 		-1, -1, 1, 1, -1, 1,
@@ -257,7 +283,7 @@ function createEnvMesh(envMap: THREE.CubeTexture): THREE.Mesh<THREE.BufferGeomet
 	const material = new THREE.RawShaderMaterial({
 		uniforms: {
 			camera: { value: new Matrix3() },
-			envMap: { value: envMap },
+			envMap: { value: null },
 			axisMap: { value: TEST_CUBE_MAP },
 		},
 		vertexShader: `

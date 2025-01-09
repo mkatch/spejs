@@ -17,9 +17,8 @@ public:
 };
 
 class SkyboxRenderTask : public Task {
-	glm::vec3 position;
-
 public:
+	const glm::vec3 position;
 	SkyboxRenderResult result;
 
 	SkyboxRenderTask(glm::vec3 position);

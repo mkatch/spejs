@@ -185,7 +185,7 @@ void UI::event_loop(const RpcServer *rpc_server) {
 		glBindVertexArray(cube_vertex_array);
 		s.Projection = glm::perspective(glm::radians(90.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 		for (auto &cube : cubes) {
-			float t = (float)glfwGetTime() + cube.phase;
+			float t = cube.phase;  //(float)glfwGetTime() + cube.phase;
 			cube.Model = glm::identity<glm::mat4>();
 			cube.Model = glm::translate(cube.Model, cube.position);
 			cube.Model = glm::scale(cube.Model, {cube.scale, cube.scale, cube.scale});
@@ -249,11 +249,13 @@ void UI::process_skybox_render_task(SkyboxRenderTask &task) {
 	glUseProgram(s.program_id);
 	glBindVertexArray(cube_vertex_array);
 
+	glm::mat tr = glm::translate(glm::identity<glm::mat4>(), task.position);
 	glm::mat4 p = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
+
 	int i = 0;
 	for (int i = 0; i < 6; ++i) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		s.Projection = p * LOOKATS[i];
+		s.Projection = p * LOOKATS[i] * tr;
 
 		for (auto &cube : cubes) {
 			s.Model = cube.Model;
