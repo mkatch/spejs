@@ -1,5 +1,9 @@
+#version 460
+
 in vec4 frag_color;
 
+out lowp vec4 _frag_color;
+
 void main() {
-  gl_FragColor = frag_color;
+  _frag_color = frag_color;
 }

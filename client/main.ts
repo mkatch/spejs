@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Matrix3, Matrix4, Vector3, Quaternion } from 'three';
-import { qoiDecode } from './qoi';
+import { decodeQoi, decodeQoiHeader } from './qoi';
 import { SkyboxServiceClient } from '@proto/SkyboxServiceClientPb';
 import { TaskServiceClient } from '@proto/TaskServiceClientPb';
 import { SkyboxRenderRequest, SkyboxRenderResult } from '@proto/skybox_pb';
@@ -27,12 +27,12 @@ const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
 	c.textAlign = 'center';
 	c.textBaseline = 'middle';
 	const faces = [
-		['#F00', '+X'],
-		['#F80', '-X'],
-		['#0A0', '+Y'],
-		['#8A0', '-Y'],
-		['#00F', '+Z'],
-		['#80F', '-Z'],
+		['#F00', 'px'],
+		['#880', 'nx'],
+		['#0F0', 'py'],
+		['#088', 'ny'],
+		['#00F', 'pz'],
+		['#808', 'nz'],
 	].map(([color, text]) => {
 		c.fillStyle = color!;
 		c.fillRect(0, 0, faceSize, faceSize);
@@ -45,50 +45,40 @@ const TEST_CUBE_MAP: THREE.CubeTexture = (() => {
 
 const env = createEnvMesh()
 
+let skyboxAtlasBuffer: ArrayBuffer = new ArrayBuffer(0)
+
 async function applySkyboxRenderResult(result: SkyboxRenderResult) {
 	console.log("Applying skybox render result: ", result.toObject())
 
 	const assetUrl = `http://${window.location.hostname}:8000/static/${result.getPath()}`;
-	const frsp = await fetch(assetUrl)
-	const d = await frsp.arrayBuffer()
-	const q = qoiDecode(d, { outputChannels: 4 })
-	console.log("skybox", q.width, 'x', q.height)
-	const ii = new Uint8Array(q.data)
-	const s = q.width * q.width * 4
+	const rsp = await fetch(assetUrl)
+	const rspData = await rsp.arrayBuffer()
 
-	const idatas = (() => {
-		const existing = env.material.uniforms.envMap!.value
-		if (existing instanceof THREE.CubeTexture) {
-			const textures = (existing.images as THREE.DataTexture[])
-			if (textures.every(t => t.image.data.length === s)) {
-				for (const t of textures) {
-					t.needsUpdate = true
-				}
-				existing.needsUpdate = true
-				return textures.map(t => t.image.data)
-			}
+	const { width: atlasWidth, height: atlasHeight } = decodeQoiHeader(rspData)
+	if (atlasHeight != 6 * atlasWidth) {
+		throw new Error(`Invalid skybox atlas dimensions: ${atlasWidth} x ${atlasHeight}. Expected height to be 6 times the width.`)
+	}
+	if (skyboxAtlasBuffer.byteLength !== atlasWidth * atlasHeight * 4) {
+		skyboxAtlasBuffer = new ArrayBuffer(atlasWidth * atlasHeight * 4)
+		const images = new Array<THREE.DataTexture>(6)
+		const imageByteSize = atlasWidth * atlasWidth * 4
+		for (const [i, _] of images.entries()) {
+			const imageData = new Uint8ClampedArray(skyboxAtlasBuffer, i * imageByteSize, imageByteSize)
+			const image = new THREE.DataTexture(imageData, atlasWidth, atlasWidth, THREE.RGBAFormat)
+			image.flipY = false
+			images[i] = image
 		}
+		const texture = new THREE.CubeTexture(images)
+		texture.generateMipmaps = true
+		texture.flipY = true
+		env.material.uniforms.envMap!.value = texture
+	}
 
-		const textures = new Array<THREE.DataTexture>(6)
-		for (const [i, _] of textures.entries()) {
-			const t = new THREE.DataTexture(new Uint8ClampedArray(s), q.width, q.width, THREE.RGBAFormat)
-			textures[i] = t
-		}
-		const envMap = new THREE.CubeTexture(textures)
-		envMap.generateMipmaps = true
-		envMap.needsUpdate = true
-		env.material.uniforms.envMap!.value = envMap
-		return textures.map(t => t.image.data)
-	})()
-
-	for (const [i, idata] of idatas.entries()) {
-		for (let r = 0; r < q.width; ++r) {
-			const i0 = (i + 1) * s - (r + 1) * q.width * 4
-			const o0 = r * q.width * 4
-			for (let c = 0; c < q.width * 4; ++c) {
-				idata[o0 + c] = ii[i0 + c]
-			}
-		}
+	decodeQoi(rspData, { outChannels: 4, outBuffer: skyboxAtlasBuffer, flipX: true })
+	const texture = env.material.uniforms.envMap!.value as THREE.CubeTexture
+	texture.needsUpdate = true
+	for (const image of texture.images) {
+		image.needsUpdate = true
 	}
 
 	env.material.needsUpdate = true
@@ -119,13 +109,30 @@ async function pollTasks() {
 setTimeout(pollTasks, 1000)
 
 const scene = new THREE.Scene();
+for (const [axis, color] of [
+	[new Vector3(1, 0, 0), "#F00"],
+	[new Vector3(-1, 0, 0), "#880"],
+	[new Vector3(0, 1, 0), "#0F0"],
+	[new Vector3(0, -1, 0), "#088"],
+	[new Vector3(0, 0, 1), "#00F"],
+	[new Vector3(0, 0, -1), "#808"],
+] as const) {
+	const geometry = new THREE.BoxGeometry(0.03, 0.03, 0.03)
+	const material = new THREE.MeshBasicMaterial({ color })
+	const mesh = new THREE.Mesh(geometry, material)
+	mesh.position.copy(axis)
+	scene.add(mesh)
+}
+
 scene.add(env)
 
 let canvasWidth = NaN
 let canvasHeight = NaN
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 10);
-camera.position.z = 1;
+camera.lookAt(0, 0, -1)
+camera.up.set(0, 1, 0)
+camera.updateMatrix()
 const nearPyramid = new Matrix3()
 
 let drag: {
@@ -171,26 +178,26 @@ const onPointer = (e: PointerEvent) => {
 
 	if (drag) {
 		const axis = new Vector3().crossVectors(drag.startRay, drag.endRay).normalize()
-		const angle = drag.startRay.angleTo(drag.endRay)
-		const deltaQuaternion = new Quaternion().setFromAxisAngle(axis, -angle)
-		camera.setRotationFromQuaternion(drag.startQuaternion.clone().multiply(deltaQuaternion))
+		if (Math.abs((axis.length() - 1)) < 1e-3) {
+			const angle = drag.startRay.angleTo(drag.endRay)
+			const deltaQuaternion = new Quaternion().setFromAxisAngle(axis, angle)
+			camera.setRotationFromQuaternion(drag.startQuaternion.clone().multiply(deltaQuaternion))
+		}
 	}
 
 	if (drag && !(e.buttons & 1)) {
 		const lastAngle = drag.prevRay.angleTo(drag.endRay)
-		let angularVelocity = lastAngle / (drag.endTime - drag.prevTime)
-		if (Math.abs(angularVelocity) < 0.05) {
-			dragMomentum = undefined
-		} else {
-			if (Math.abs(angularVelocity) > 6) {
-				angularVelocity = 6 * Math.sign(angularVelocity)
-			}
+		const angularVelocity = Math.max(-6, Math.min(6, lastAngle / (drag.endTime - drag.prevTime)))
+		const axis = new Vector3().crossVectors(drag.prevRay, drag.endRay).normalize()
+		if (Math.abs(angularVelocity) > 0.05 && Math.abs(axis.length() - 1) < 1e-3) {
 			dragMomentum = {
 				startQuaternion: camera.quaternion.clone(),
 				axis: new Vector3().crossVectors(drag.prevRay, drag.endRay).normalize(),
 				startVelocity: angularVelocity,
 				startTime: time,
 			}
+		} else {
+			dragMomentum = undefined
 		}
 		drag = undefined
 	}
@@ -199,7 +206,7 @@ for (const type of ['pointerdown', 'pointermove', 'pointerup'] as const) {
 	renderer.domElement.addEventListener(type, onPointer)
 }
 renderer.domElement.addEventListener("dblclick", () => {
-	const step = camera.getWorldDirection(new Vector3()).multiplyScalar(8)
+	const step = camera.getWorldDirection(new Vector3()).multiplyScalar(2)
 	const { x, y, z } = camera.position.add(step)
 	camera.updateMatrix()
 	console.log(camera.position)
@@ -245,7 +252,7 @@ function draw() {
 		const dt = Math.min(maxDuration, time - dragMomentum.startTime)
 
 		const angle = dt * dragMomentum.startVelocity + 0.5 * accel * dt ** 2
-		const deltaQuaternion = new Quaternion().setFromAxisAngle(dragMomentum.axis, -angle)
+		const deltaQuaternion = new Quaternion().setFromAxisAngle(dragMomentum.axis, angle)
 		camera.setRotationFromQuaternion(dragMomentum.startQuaternion.clone().multiply(deltaQuaternion))
 
 		if (dt >= maxDuration) {
@@ -257,6 +264,7 @@ function draw() {
 		const envCamera = env.material.uniforms.camera!.value as Matrix3
 		envCamera
 			.setFromMatrix4(new Matrix4().makeRotationFromQuaternion(camera.quaternion))
+			// .transpose()
 			.multiply(nearPyramid)
 	}
 
@@ -291,7 +299,7 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
       attribute vec2 position;
       varying vec3 envCoords;
       void main() {
-        envCoords = camera * vec3(position, 1.0);
+        envCoords = camera * vec3(position, -1.0);
         gl_Position = vec4(position, 0.0, 1.0);
       }
   `,
@@ -301,8 +309,8 @@ function createEnvMesh(): THREE.Mesh<THREE.BufferGeometry, THREE.RawShaderMateri
       varying highp vec3 envCoords;
       void main() {
         gl_FragColor =
-          0.9 * textureCube(envMap, envCoords) +
-          0.1 * textureCube(axisMap, envCoords);
+          1.0 * textureCube(envMap, envCoords) +
+          0.0 * textureCube(axisMap, envCoords);
       }
   `,
 		depthTest: false,

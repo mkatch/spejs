@@ -13,6 +13,8 @@ uniform vec3 light1_color;
 in vec3 frag_position;
 in vec3 frag_normal;
 
+out lowp vec4 frag_color;
+
 vec3 compute_light(vec3 light_position, vec3 light_color, vec3 n) {
   vec3 light_r = light_position - frag_position;
   float d = length(light_r);
@@ -22,7 +24,7 @@ vec3 compute_light(vec3 light_position, vec3 light_color, vec3 n) {
 
 void main() {
   vec3 n = normalize(frag_normal);
-  gl_FragColor = vec4(
+  frag_color = vec4(
     color.rgb * (
       ambient_color +
       compute_light(light0_position, light0_color, n) +

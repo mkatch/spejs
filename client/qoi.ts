@@ -1,23 +1,16 @@
-/**
- * Decode a QOI file given as an ArrayBuffer.
- *
- * Ported with small adjustmensd from https://github.com/kchapelier/qoijs. 
- **/
-export function qoiDecode(inputBuffer: ArrayBuffer, params?: {
-	byteOffset?: number,
-	byteLength?: number,
-	outputChannels?: 3 | 4,
-	outputBuffer?: ArrayBuffer,
-}): {
+export type QoiHeader = {
 	width: number,
 	height: number,
 	colorspace: 0 | 1,
 	channels: 3 | 4,
+}
+
+export type QoiFile = QoiHeader & {
 	data: ArrayBuffer
-} {
-	const byteOffset = params?.byteOffset ?? 0
-	const byteLength = params?.byteLength ?? inputBuffer.byteLength - byteOffset
-	const input = new Uint8Array(inputBuffer, byteOffset, byteLength)
+}
+
+export function decodeQoiHeader(data: ArrayBuffer): QoiHeader {
+	const input = new Uint8Array(data)
 
 	if (input[0] !== 0x71 || input[1] !== 0x6F || input[2] !== 0x69 || input[3] !== 0x66) {
 		throw new Error('Invalid magic number.');
@@ -39,96 +32,109 @@ export function qoiDecode(inputBuffer: ArrayBuffer, params?: {
 		throw new Error(`Invald input colorspace. Expected 0 or 1, got ${colorspace}`)
 	}
 
-	const outputChannels = params?.outputChannels ?? channels
-	const pixelLength = width * height * outputChannels
-	const output = params?.outputBuffer ? new Uint8Array(params.outputBuffer) : new Uint8Array(pixelLength)
+	return { width, height, colorspace, channels }
+}
 
-	if (output.length < pixelLength) {
-		throw new Error(`Output buffer is too small. Expected at least ${pixelLength} bytes, available: ${output.length}.`);
+/**
+ * Decode a QOI file given as an ArrayBuffer.
+ *
+ * Ported with small adjustmensd from https://github.com/kchapelier/qoijs. 
+ **/
+export function decodeQoi(data: ArrayBuffer, params?: {
+	outChannels?: 3 | 4,
+	outBuffer?: ArrayBuffer,
+	flipX?: boolean,
+	flipY?: boolean,
+}): QoiFile {
+	const header = decodeQoiHeader(data)
+	const { width, height, channels } = header
+	const inData = new Uint8Array(data)
+
+	const { outChannels = channels, flipX = false, flipY = false } = params ?? {}
+	const outLength = width * height * outChannels
+	const outData = params?.outBuffer ? new Uint8Array(params.outBuffer) : new Uint8Array(outLength)
+
+	if (outData.length < outLength) {
+		throw new Error(`Output buffer is too small. Expected at least ${outLength} bytes, available: ${outData.length}.`);
 	}
 
-	const index = new Uint8Array(64 * 4)
-	const chunksLength = byteLength - 8;
-	let arrayPosition = 14
-	let pixelPosition = 0;
+	const outStep = flipX ? -outChannels : outChannels
+	const topDownOutRowStartStep = width * outChannels
+	const topDownRowStartStart = flipX ? topDownOutRowStartStep + outStep : 0
+	const outRowStartStep = flipY ? -topDownOutRowStartStep : topDownOutRowStartStep
+	const outRowStartStart = flipY ? outLength - outRowStartStep + topDownRowStartStart : topDownRowStartStart
+	const outRowEndOffset = width * outStep
+	const outRowStartEnd = outRowStartStart + height * outRowStartStep
+	const outAlphaOffset = outChannels - 1 // Trick to write alpha unconditionally
+
+	const pallette = new Uint8Array(64 * 4)
 	let red = 0, green = 0, blue = 0, alpha = 255
-	let run = 0;
+	let run = 0
+	let inIndex = 14, inEnd = inData.length
+	let outIndex = 0, decodedCount = 0
+	for (let outRowStart = outRowStartStart; outRowStart !== outRowStartEnd && inIndex < inEnd; outRowStart += outRowStartStep) {
+		const outRowEnd = outRowStart + outRowEndOffset
+		for (outIndex = outRowStart; outIndex !== outRowEnd && inIndex < inEnd; outIndex += outStep) {
+			if (run > 0) {
+				--run
+			} else {
+				const byte1 = inData[inIndex++]
+				if (byte1 === 0b11111110) { // QOI_OP_RGB
+					red = inData[inIndex++]
+					green = inData[inIndex++]
+					blue = inData[inIndex++]
+				} else if (byte1 === 0b11111111) { // QOI_OP_RGBA
+					red = inData[inIndex++]
+					green = inData[inIndex++]
+					blue = inData[inIndex++]
+					alpha = inData[inIndex++]
+				} else if ((byte1 & 0b11000000) === 0b00000000) { // QOI_OP_INDEX
+					const palletteOffset = byte1 * 4
+					red = pallette[palletteOffset]
+					green = pallette[palletteOffset + 1]
+					blue = pallette[palletteOffset + 2]
+					alpha = pallette[palletteOffset + 3]
+				} else if ((byte1 & 0b11000000) === 0b01000000) { // QOI_OP_DIFF
+					red += ((byte1 >> 4) & 0b00000011) - 2
+					green += ((byte1 >> 2) & 0b00000011) - 2
+					blue += (byte1 & 0b00000011) - 2
+					red = (red + 256) % 256
+					green = (green + 256) % 256
+					blue = (blue + 256) % 256
+				} else if ((byte1 & 0b11000000) === 0b10000000) { // QOI_OP_LUMA
+					const byte2 = inData[inIndex++]
+					const greenDiff = (byte1 & 0b00111111) - 32
+					const redDiff = greenDiff + ((byte2 >> 4) & 0b00001111) - 8
+					const blueDiff = greenDiff + (byte2 & 0b00001111) - 8
+					red = (red + redDiff + 256) % 256
+					green = (green + greenDiff + 256) % 256
+					blue = (blue + blueDiff + 256) % 256
+				} else if ((byte1 & 0b11000000) === 0b11000000) { // QOI_OP_RUN
+					run = byte1 & 0b00111111;
+				} else {
+					inIndex = inEnd
+					break;
+				}
 
-	for (; pixelPosition < pixelLength && arrayPosition < byteLength - 4; pixelPosition += outputChannels) {
-		if (run > 0) {
-			run--
-		} else if (arrayPosition < chunksLength) {
-			const byte1 = input[arrayPosition++]
-
-			if (byte1 === 0b11111110) { // QOI_OP_RGB
-				red = input[arrayPosition++]
-				green = input[arrayPosition++]
-				blue = input[arrayPosition++]
-			} else if (byte1 === 0b11111111) { // QOI_OP_RGBA
-				red = input[arrayPosition++]
-				green = input[arrayPosition++]
-				blue = input[arrayPosition++]
-				alpha = input[arrayPosition++]
-			} else if ((byte1 & 0b11000000) === 0b00000000) { // QOI_OP_INDEX
-				red = index[byte1 * 4]
-				green = index[byte1 * 4 + 1]
-				blue = index[byte1 * 4 + 2]
-				alpha = index[byte1 * 4 + 3]
-			} else if ((byte1 & 0b11000000) === 0b01000000) { // QOI_OP_DIFF
-				red += ((byte1 >> 4) & 0b00000011) - 2
-				green += ((byte1 >> 2) & 0b00000011) - 2
-				blue += (byte1 & 0b00000011) - 2
-
-				// handle wraparound
-				red = (red + 256) % 256
-				green = (green + 256) % 256
-				blue = (blue + 256) % 256
-			} else if ((byte1 & 0b11000000) === 0b10000000) { // QOI_OP_LUMA
-				const byte2 = input[arrayPosition++]
-				const greenDiff = (byte1 & 0b00111111) - 32
-				const redDiff = greenDiff + ((byte2 >> 4) & 0b00001111) - 8
-				const blueDiff = greenDiff + (byte2 & 0b00001111) - 8
-
-				// handle wraparound
-				red = (red + redDiff + 256) % 256
-				green = (green + greenDiff + 256) % 256
-				blue = (blue + blueDiff + 256) % 256
-			} else if ((byte1 & 0b11000000) === 0b11000000) { // QOI_OP_RUN
-				run = byte1 & 0b00111111;
+				const palleteOffset = ((red * 3 + green * 5 + blue * 7 + alpha * 11) % 64) * 4
+				pallette[palleteOffset] = red
+				pallette[palleteOffset + 1] = green
+				pallette[palleteOffset + 2] = blue
+				pallette[palleteOffset + 3] = alpha
 			}
 
-			const indexPosition = ((red * 3 + green * 5 + blue * 7 + alpha * 11) % 64) * 4
-			index[indexPosition] = red
-			index[indexPosition + 1] = green
-			index[indexPosition + 2] = blue
-			index[indexPosition + 3] = alpha
-		}
-
-		if (outputChannels === 4) { // RGBA
-			output[pixelPosition] = red
-			output[pixelPosition + 1] = green
-			output[pixelPosition + 2] = blue
-			output[pixelPosition + 3] = alpha
-		} else { // RGB
-			output[pixelPosition] = red
-			output[pixelPosition + 1] = green
-			output[pixelPosition + 2] = blue
+			outData[outIndex + outAlphaOffset] = alpha
+			outData[outIndex] = red
+			outData[outIndex + 1] = green
+			outData[outIndex + 2] = blue
+			++decodedCount
 		}
 	}
 
-	if (pixelPosition < pixelLength) {
-		throw new Error('Incomplete image');
+	if (decodedCount != width * height) {
+		throw new Error(`Malformed image. Decoded ${decodedCount} pixels, out of expected ${width * height}.`)
 	}
 
-	// checking the 00000001 padding is not required, as per specs
-
-	new ImageData(new Uint8ClampedArray(output.buffer), width, height)
-
-	return {
-		width,
-		height,
-		colorspace,
-		channels: outputChannels,
-		data: output
-	};
+	return { ...header, channels: outChannels, data: outData }
 }
+
