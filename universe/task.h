@@ -1,57 +1,100 @@
 #pragma once
 
-#include "common.h"
-
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <queue>
 
-#include <proto/task.grpc.pb.h>
+#include <universe/proto/task.grpc.pb.h>
 
-typedef uint32_t TaskId;
-typedef TaskResult::ResultCase TaskType;
+#include "common.h"
 
-class Task {
+typedef uint64_t TaskId;
+class TaskReactor;
+
+class Task final {
+	weak_ptr<TaskReactor> reactor;
+
 public:
-	const TaskType type;
+	typedef universepb::TaskRequest Request;
+	typedef pb::TaskResponse Response;
+	typedef pb::TaskRequest::VariantCase VariantCase;
 
-	Task(TaskType type)
-			: type(type) { }
-	virtual ~Task() = default;
+	const Request request;
+	Response response;
 
-	virtual void write_result(TaskResult *result) = 0;
+	Task(const shared_ptr<TaskReactor> &reactor)
+			: reactor(reactor) { }
+
+	VariantCase variant_case() const { return request.task().variant_case(); }
+
+	static void done(unique_ptr<Task> &&task);
 };
 
-class TaskQueue {
-	std::mutex pending_mut;
-	std::queue<std::unique_ptr<Task>> pending;
-	std::mutex results_mut;
-	google::protobuf::RepeatedPtrField<TaskResult> results;
+class ActiveTaskBase {
+public:
+	virtual ~ActiveTaskBase();
+
+	void done() { is_done = true; }
+
+protected:
+	unique_ptr<Task> task;
+	bool is_done = false;
+
+	ActiveTaskBase(unique_ptr<Task> &&task)
+			: task(std::move(task)) { }
+};
+
+template <class RequestType, class ResponseType>
+class ActiveTask : public ActiveTaskBase {
+public:
+	typedef RequestType Request;
+	typedef ResponseType Response;
+
+	const Request &request;
+	Response &response;
+
+protected:
+	ActiveTask(const Request &request, Response &response, unique_ptr<Task> &&task)
+			: ActiveTaskBase(std::move(task))
+			, request(request)
+			, response(response) {
+		// Not a perfect check, but can detect some mistakes.
+		assert(task->request.task().variant_case() == task->response().variant_case());
+	}
+};
+
+class TaskQueue final : public universepb::TaskService::CallbackService {
+	std::mutex mut;
+	std::queue<unique_ptr<Task>> pending_tasks;
 
 public:
-	void add(std::unique_ptr<Task> &&task);
+	void add(unique_ptr<Task> &&task);
 
-	template <class T, class... Args>
-	void add(Args &&...args) {
-		add(std::make_unique<T>(std::forward<Args>(args)...));
-	}
+	unique_ptr<Task> pop();
 
-	std::unique_ptr<Task> pop();
+	grpc::ServerBidiReactor<Task::Request, Task::Response> *Stream(grpc::CallbackServerContext *ctx) override;
+};
 
-	void done(std::unique_ptr<Task> &&task);
+class TaskReactor final : public grpc::ServerBidiReactor<Task::Request, Task::Response> {
+	std::mutex mut;
+	shared_ptr<TaskReactor> shared_this;
+	TaskQueue &tasks;
+	std::queue<unique_ptr<Task>> write_queue;
+	unique_ptr<Task> read_target;
+
+public:
+	TaskReactor(TaskQueue &tasks);
+
+	const shared_ptr<TaskReactor> &shared() const { return shared_this; }
+
+	void done(unique_ptr<Task> &&task);
+
+	void OnReadDone(bool ok) override;
+	void OnWriteDone(bool ok) override;
+	void OnDone() override;
 
 private:
-	friend class TaskServiceServer;
-};
-
-// TODO: Use the async API (callback or queues?)
-class TaskServiceServer final : public TaskService::Service {
-	TaskQueue &tasks;
-
-public:
-	TaskServiceServer(TaskQueue &tasks)
-			: tasks(tasks) { }
-
-	grpc::Status Poll(grpc::ServerContext *ctx, const TaskPollRequest *req, TaskPollResponse *rsp) override;
+	void read_next();
+	void write_next();
 };

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mkacz91/spejs/pb"
+	"github.com/mkatch/spejs/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"

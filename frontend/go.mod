@@ -1,16 +1,16 @@
-module github.com/mkacz91/spejs/frontend
+module github.com/mkatch/spejs/frontend
 
 go 1.21.5
 
-replace github.com/mkacz91/spejs/pb => ../build/proto/go
+replace github.com/mkatch/spejs/pb => ../build/gen_go/proto
 
-replace github.com/mkacz91/spejs/universe => ../build/universe/proto/go
+replace github.com/mkatch/spejs/universepb => ../build/gen_go/universe/proto
 
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/improbable-eng/grpc-web v0.15.0
-	github.com/mkacz91/spejs/pb v0.0.0
-	github.com/mkacz91/spejs/universe v0.0.0
+	github.com/mkatch/spejs/pb v0.0.0
+	github.com/mkatch/spejs/universepb v0.0.0
 	google.golang.org/grpc v1.60.1
 )
 

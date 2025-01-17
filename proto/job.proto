@@ -1,8 +1,9 @@
 syntax = "proto3";
 
-import "google/protobuf/empty.proto";
+package pb;
+option go_package = "github.com/mkatch/spejs/pb";
 
-option go_package = "github.com/mkacz91/spejs/pb";
+import "google/protobuf/empty.proto";
 
 // Meta-service that allows interacting with a job running a gRPC server.
 service JobService {

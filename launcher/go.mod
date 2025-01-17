@@ -1,11 +1,11 @@
-module github.com/mkacz91/spejs/launcher
+module github.com/mkatch/spejs/launcher
 
 go 1.23.4
 
-replace github.com/mkacz91/spejs/pb => ../build/proto/go
+replace github.com/mkatch/spejs/pb => ../build/gen_go/proto
 
 require (
-	github.com/mkacz91/spejs/pb v0.0.0
+	github.com/mkatch/spejs/pb v0.0.0
 	google.golang.org/grpc v1.60.1
 	google.golang.org/protobuf v1.36.1
 )

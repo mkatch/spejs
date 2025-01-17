@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mkacz91/spejs/pb"
+	"github.com/mkatch/spejs/pb"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 

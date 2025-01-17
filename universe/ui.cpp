@@ -2,8 +2,10 @@
 
 #include <qoi.h>
 
+#include "proto.h"
 #include "rpc.h"
 #include "shaders.h"
+#include "skybox.h"
 #include "task.h"
 #include "ui.h"
 
@@ -239,20 +241,20 @@ void UI::on_key(int key, int scancode, int action, int mods) {
 }
 
 void UI::process_tasks() {
-	std::unique_ptr<Task> task = tasks.pop();
+	unique_ptr<Task> task = tasks.pop();
 	if (!task) {
 		return;
 	}
-	switch (task->type) {
-		case TaskType::kSkyboxRender:
-			process_skybox_render_task(*static_cast<SkyboxRenderTask *>(task.get()));
+	switch (task->variant_case()) {
+		case Task::VariantCase::kSkybox: {
+			SkyboxTask skybox_task(std::move(task));
+			process_skybox_task(skybox_task);
 			break;
-
+		}
 		default:
-			std::cerr << "Unimplemented task type: " << task->type << std::endl;
+			std::cerr << "Unimplemented task variant: " << task->variant_case() << std::endl;
 			break;
 	}
-	tasks.done(std::move(task));
 }
 
 // TODO: The order is by trial & error. I have no idea why it is in this
@@ -267,7 +269,7 @@ const glm::mat4 LOOKATS[] = {
 	glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, -1), glm::vec3(0, +1, 0)),
 };
 
-void UI::process_skybox_render_task(SkyboxRenderTask &task) {
+void UI::process_skybox_task(SkyboxTask &task) {
 	glBindFramebuffer(GL_FRAMEBUFFER, skybox_framebuffer);
 	glViewport(0, 0, SKYBOX_SIZE, SKYBOX_SIZE);
 
@@ -275,8 +277,9 @@ void UI::process_skybox_render_task(SkyboxRenderTask &task) {
 	glUseProgram(s.program_id);
 	glBindVertexArray(cube_vertex_array);
 
-	cubes.back().position = task.position;
-	glm::mat tr = glm::translate(glm::identity<glm::mat4>(), -task.position);
+	const glm::vec3 position = proto_cast<glm::vec3>(task.request.position());
+	cubes.back().position = position;
+	glm::mat tr = glm::translate(glm::identity<glm::mat4>(), -position);
 	glm::mat4 p = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 100.0f);
 	glm::mat4 flip = glm::scale(glm::identity<glm::mat4>(), glm::vec3(-1.0f, 1.0f, 1.0f));
 
@@ -302,7 +305,8 @@ void UI::process_skybox_render_task(SkyboxRenderTask &task) {
 	std::string path = "skybox.qoi";
 	qoi_desc desc = {(unsigned int)SKYBOX_SIZE, 6 * (unsigned int)SKYBOX_SIZE, 3, QOI_LINEAR};
 	qoi_write(path.c_str(), skybox_pixels, &desc);
-	task.result.set_path(path);
+	task.response.set_path(path);
+	task.done();
 }
 
 void UI::create_cube_vertices(gl::VertexBuffer<SolidVertex> &vertex_buffer) {

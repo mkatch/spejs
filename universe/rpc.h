@@ -3,15 +3,13 @@
 #include <string>
 
 #include "job.h"
-#include "skybox.h"
-#include "universe.h"
+
+class TaskQueue;
 
 class RpcServer {
 	int _port;
-	JobServiceImpl job_service;
-	SkyboxServiceServer skybox_service;
-	UniverseServiceImpl universe_service;
-	TaskServiceServer task_service;
+	TaskQueue &tasks;
+	JobServiceServer job_service;
 	std::shared_ptr<grpc::Server> server;
 	std::thread waiting_thread;
 	std::atomic<bool> _is_running = true;

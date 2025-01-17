@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package universepb;
+option go_package = "github.com/mkatch/spejs/universepb";
+
+import "proto/task.proto";
+
+service TaskService {
+	rpc Stream (stream TaskRequest) returns (stream .pb.TaskResponse) { }
+}
+
+message TaskRequest {
+	uint64 task_id = 1;
+	.pb.TaskRequest task = 2;
+}
+

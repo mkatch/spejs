@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -16,3 +17,8 @@ inline string squote(const string_view &s) {
 inline string paren(const string_view &s) {
 	return (std::ostringstream() << '(' << s << ')').str();
 }
+
+using std::make_unique;
+using std::shared_ptr;
+using std::unique_ptr;
+using std::weak_ptr;

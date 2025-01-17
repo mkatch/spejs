@@ -1,20 +1,13 @@
 import * as THREE from 'three';
 import { Matrix3, Matrix4, Vector3, Quaternion } from 'three';
 import { decodeQoi, decodeQoiHeader } from './qoi';
-import { SkyboxServiceClient } from '@proto/SkyboxServiceClientPb';
-import { TaskServiceClient } from '@proto/TaskServiceClientPb';
-import { SkyboxRenderRequest, SkyboxRenderResult } from '@proto/skybox_pb';
-import { TaskPollRequest, TaskResult } from '@proto/task_pb';
+import { TaskListenRequest, TaskRequest, TaskResponse, TaskScheduleRequest, TaskServiceClient } from '@gen/proto/task';
+import { SkyboxRequest, SkyboxResponse } from '@gen/proto/skybox';
 
 const canvasContainerElement = document.getElementById('canvas-container') as HTMLDivElement
 
 const frontendUrl = `http://${window.location.hostname}:6101`;
-const skyboxService = new SkyboxServiceClient(frontendUrl, undefined);
 const taskService = new TaskServiceClient(frontendUrl, undefined);
-
-const skyboxRenderRequest = new SkyboxRenderRequest();
-skyboxRenderRequest.setPositionList([0, 0, 0]);
-void skyboxService.render(skyboxRenderRequest)
 
 let time = 0
 
@@ -47,10 +40,8 @@ const env = createEnvMesh()
 
 let skyboxAtlasBuffer: ArrayBuffer = new ArrayBuffer(0)
 
-async function applySkyboxRenderResult(result: SkyboxRenderResult) {
-	console.log("Applying skybox render result: ", result.toObject())
-
-	const assetUrl = `http://${window.location.hostname}:8000/static/${result.getPath()}`;
+async function applySkyboxResponse(skybox: SkyboxResponse) {
+	const assetUrl = `http://${window.location.hostname}:8000/static/${skybox.getPath()}`;
 	const rsp = await fetch(assetUrl)
 	const rspData = await rsp.arrayBuffer()
 
@@ -84,29 +75,22 @@ async function applySkyboxRenderResult(result: SkyboxRenderResult) {
 	env.material.needsUpdate = true
 }
 
-async function pollTasks() {
-	try {
-		console.log("Polling tasks...")
-		const req = new TaskPollRequest()
-		const rsp = await taskService.poll(req)
-		for (const result of rsp.getResultsList()) {
-			switch (result.getResultCase()) {
-				case TaskResult.ResultCase.SKYBOX_RENDER:
-					applySkyboxRenderResult(result.getSkyboxRender()!)
-					break
-				default:
-					console.error("Unknown result type: ", result.getResultCase())
-			}
-		}
-	} catch (e) {
-		console.log(e);
+const taskStream = taskService.listen(new TaskListenRequest())
+taskStream.on("data", (rsp) => {
+	console.log("Received task response: ", rsp.toObject())
+	switch (rsp.getVariantCase()) {
+		case TaskResponse.VariantCase.SKYBOX:
+			return applySkyboxResponse(rsp.getSkybox()!)
+		case TaskResponse.VariantCase.VARIANT_NOT_SET:
+			return console.error("Received empty task response")
 	}
-
-	finally {
-		setTimeout(pollTasks, 1000)
-	}
-}
-setTimeout(pollTasks, 1000)
+})
+taskStream.on("end", () => {
+	console.log("Task stream ended")
+})
+taskStream.on("error", (err) => {
+	console.error("Task stream error", err)
+})
 
 const scene = new THREE.Scene();
 for (const [axis, color] of [
@@ -202,18 +186,16 @@ const onPointer = (e: PointerEvent) => {
 		drag = undefined
 	}
 }
+
 for (const type of ['pointerdown', 'pointermove', 'pointerup'] as const) {
 	renderer.domElement.addEventListener(type, onPointer)
 }
-renderer.domElement.addEventListener("dblclick", () => {
+renderer.domElement.addEventListener("dblclick", async () => {
 	const step = camera.getWorldDirection(new Vector3()).multiplyScalar(2)
-	const { x, y, z } = camera.position.add(step)
+	camera.position.add(step)
 	camera.updateMatrix()
 	console.log(camera.position)
-
-	const skyboxRenderRequest = new SkyboxRenderRequest();
-	skyboxRenderRequest.setPositionList([x, y, z]);
-	void skyboxService.render(skyboxRenderRequest)
+	scheduleSkybox()
 })
 
 function onCanvasContainerResize() {
@@ -239,6 +221,15 @@ function onCanvasContainerResize() {
 }
 onCanvasContainerResize()
 new ResizeObserver(onCanvasContainerResize).observe(canvasContainerElement)
+
+async function scheduleSkybox(): Promise<void> {
+	const { x, y, z } = camera.position
+	const skyboxRequest = new SkyboxRequest().setPositionList([x, y, z])
+	const scheduleRequest = new TaskScheduleRequest().setRequest(new TaskRequest().setSkybox(skyboxRequest))
+	const scheduleResponse = await taskService.schedule(scheduleRequest)
+	console.log(scheduleResponse)
+}
+scheduleSkybox()
 
 function draw() {
 	if (dragMomentum) {

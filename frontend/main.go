@@ -13,7 +13,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
-	"github.com/mkacz91/spejs/pb"
+	"github.com/mkatch/spejs/pb"
+	"github.com/mkatch/spejs/universepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -69,24 +70,15 @@ func mainWithError() error {
 		return fmt.Errorf("failed to dial universe server at %s: %w", *universeAddr, err)
 	}
 	defer universeConn.Close()
+	universeTaskServiceClient := universepb.NewTaskServiceClient(universeConn)
 
 	grpcServer := grpc.NewServer()
-
-	universeServiceServer := NewUniverseServiceServer(universeConn)
-	pb.RegisterUniverseServiceServer(grpcServer, universeServiceServer)
 
 	jobServiceServer := NewJobServiceServer()
 	pb.RegisterJobServiceServer(grpcServer, jobServiceServer)
 
-	taskServiceServer := TaskServiceServer{
-		backend: pb.NewTaskServiceClient(universeConn),
-	}
+	taskServiceServer := TaskServiceServer{}
 	pb.RegisterTaskServiceServer(grpcServer, &taskServiceServer)
-
-	skyboxServiceServer := SkyboxServiceServer{
-		backend: pb.NewSkyboxServiceClient(universeConn),
-	}
-	pb.RegisterSkyboxServiceServer(grpcServer, &skyboxServiceServer)
 
 	log.Println("Starting gRPC server on ", grpcLis.Addr())
 	wg.Add(1)
@@ -130,6 +122,9 @@ func mainWithError() error {
 		wg.Done()
 	}()
 
+	log.Println("Starting task streaming...")
+	taskServiceServer.StartStreaming(universeTaskServiceClient)
+
 	grpcwebServer := &http.Server{Handler: grpcweb.WrapServer(
 		grpcServer,
 		grpcweb.WithOriginFunc(func(origin string) bool {
@@ -148,12 +143,13 @@ func mainWithError() error {
 
 	go func() {
 		jobServiceServer.WaitForQuit()
+		if err := taskServiceServer.StopStreaming(); err != nil {
+			log.Printf("StopStreaming: %v.", err)
+		}
 		grpcServer.GracefulStop()
 		grpcwebServer.Shutdown(context.Background())
 		webServer.Shutdown(context.Background())
 	}()
-
-	go universeServiceServer.PingBackend()
 
 	wg.Wait()
 	return nil

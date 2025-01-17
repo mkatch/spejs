@@ -3,19 +3,17 @@
 #include <grpcpp/grpcpp.h>
 #include <iostream>
 
+#include "task.h"
+
 RpcServer::RpcServer(int argc, char **argv, TaskQueue &tasks)
 		: job_service(argc, argv)
-		, skybox_service(tasks)
-		, universe_service(tasks)
-		, task_service(tasks) { }
+		, tasks(tasks) { }
 
 void RpcServer::start(const string &addr) {
 	grpc::ServerBuilder builder;
 	builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &_port);
 	builder.RegisterService(&job_service);
-	builder.RegisterService(&universe_service);
-	builder.RegisterService(&skybox_service);
-	builder.RegisterService(&task_service);
+	builder.RegisterService(&tasks);
 
 	server = builder.BuildAndStart();
 	if (!server) {

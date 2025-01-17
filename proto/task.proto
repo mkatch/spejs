@@ -1,21 +1,35 @@
 syntax = "proto3";
 
+package pb;
 option go_package = "github.com/mkatch/spejs/pb";
 
-import "skybox.proto";
+import "proto/skybox.proto";
 
 service TaskService {
-	rpc Poll (TaskPollRequest) returns (TaskPollResponse) {}
+	rpc Schedule (TaskScheduleRequest) returns (TaskScheduleResponse) {}
+	rpc Listen (TaskListenRequest) returns (stream TaskResponse) { }
 }
 
-message TaskResult {
-	oneof result {
-		SkyboxRenderResult skybox_render = 2;
+message TaskScheduleRequest {
+	
+	TaskRequest request = 1;
+}
+
+message TaskScheduleResponse {
+	uint64 task_id = 1;
+}
+
+message TaskListenRequest { }
+
+message TaskRequest {
+	oneof variant {
+		SkyboxRequest skybox = 100;
 	}
 }
 
-message TaskPollRequest { }
-
-message TaskPollResponse {
-	repeated TaskResult results = 1;
+message TaskResponse {
+	uint64 task_id = 1;
+	oneof variant {
+		SkyboxResponse skybox = 100;
+	}
 }

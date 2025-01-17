@@ -25,17 +25,27 @@ find_package(gRPC REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(QOI REQUIRED)
 
+cmake_path(SET CPP_GEN_DIR "${BUILD_DIR}/gen_cpp")
+make_directory(${CPP_GEN_DIR})
+cmake_path(SET JS_GEN_DIR "${BUILD_DIR}/gen_js")
+make_directory(${JS_GEN_DIR})
+cmake_path(SET JS_INTERNAL_GEN_DIR "${BUILD_DIR}/gen_js_internal")
+make_directory(${JS_INTERNAL_GEN_DIR})
+cmake_path(SET GO_GEN_DIR "${BUILD_DIR}/gen_go")
+make_directory(${GO_GEN_DIR})
+
 include_directories(
   ${GLM_INCLUDE_DIR}
   ${GLFW_INCLUDE_DIR}
   ${GRPC_INCLUDE_DIR}
   ${QOI_INCLUDE_DIR}
   ${ROOT_DIR}
-  ${BUILD_DIR}
+  ${CPP_GEN_DIR}
 )
 
 include(cmake/util.cmake)
 include(cmake/proto.cmake)
+include(cmake/go.cmake)
 
 function(include_pkg REL_PKG_CMAKE)
   cmake_path(SET PKG_CMAKE "${ROOT_DIR}/${REL_PKG_CMAKE}")
@@ -49,6 +59,7 @@ function(include_pkg REL_PKG_CMAKE)
   include(${PKG_CMAKE})
 endfunction()
 
+include_pkg(cli/cli.cmake)
 include_pkg(proto/proto.cmake)
 include_pkg(gl_cpp/gl_cpp.cmake)
 include_pkg(shader_bundler/shader_bundler.cmake)

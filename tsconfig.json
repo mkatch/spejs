@@ -8,8 +8,8 @@
       "DOM.Iterable"
     ],
     "paths": {
-      "@proto/*": [
-        "./build/proto/*"
+      "@gen/*": [
+        "./build/gen_js/*"
       ]
     },
     "moduleResolution": "bundler",
