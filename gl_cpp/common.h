@@ -8,6 +8,28 @@ namespace gl {
 // Returns a string representation of the given OpenGL enum.
 const string &enum_string(GLenum value);
 
+// Size of a type referenced by a GLenum, in bytes.
+inline size_t size_of(GLenum type) {
+	switch (type) {
+		case GL_BYTE:
+		case GL_UNSIGNED_BYTE:
+			return sizeof(GLbyte);
+		case GL_SHORT:
+		case GL_UNSIGNED_SHORT:
+			return sizeof(GLshort);
+		case GL_INT:
+		case GL_UNSIGNED_INT:
+			return sizeof(GLint);
+		case GL_FLOAT:
+			return sizeof(GLfloat);
+		case GL_DOUBLE:
+			return sizeof(GLdouble);
+		default:
+			assert(false);
+			return 0;
+	}
+}
+
 // An exception that is thrown when an error related to the usage of OpenGL
 // occurs.
 class exception : public std::runtime_error {

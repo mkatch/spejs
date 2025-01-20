@@ -1,10 +1,10 @@
 #pragma once
 
-#include "common.h"
-
 #include <vector>
 
+#include "common.h"
 #include "math.h"
+#include "texture.h"
 
 namespace gl {
 
@@ -109,6 +109,15 @@ struct _matrix_Uniform(4x3, 3x4);
 #undef _scalar_Uniform
 #undef _Attribute
 
+struct Uniform_sampler3D : public Uniform {
+	Uniform_sampler3D(char const *name)
+			: Uniform(name, GL_SAMPLER_3D) { }
+	TextureUnit operator=(TextureUnit unit) const {
+		glUniform1ui(location, unit);
+		return unit;
+	}
+};
+
 // Wraps an OpenGL shader program object.
 struct Program {
 	GLuint program_id;
@@ -154,6 +163,8 @@ protected:
 #undef _Attribtue_Uniform_typedef
 #undef _Uniform_typedef
 #undef _Attribute_typedef
+
+	typedef Uniform_sampler3D uniform_sampler3D;
 
 	Program(const char *name, VertexShaderSource const &vertex_shader_source, FragmentShaderSource const &fragment_shader_source);
 };
