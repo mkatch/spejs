@@ -34,4 +34,15 @@ struct Shaders : public gl::Shaders {
 				: Program("SolidProgram", Src::solid_v, Src::solid_f) { }
 	};
 	const SolidProgram solid_program;
+
+	struct SkyboxPreviewProgram : gl::Program {
+		uniform_mat4 ProjectionView = {"ProjectionView"};
+		uniform_mat4 Model = {"Model"};
+		uniform_sampler3D luminance = {"luminance"};
+		in_vec3 position = {"position"};
+
+		SkyboxPreviewProgram()
+				: Program("SkyboxProgram", Src::skybox_preview_v, Src::skybox_f) { }
+	};
+	const SkyboxPreviewProgram skybox_preview_program;
 };

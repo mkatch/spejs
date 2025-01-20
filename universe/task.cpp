@@ -2,7 +2,7 @@
 
 #include <unordered_set>
 
-void Task::done(unique_ptr<Task> &&task) {
+void Task::done(unique_ptr<Task> task) {
 	shared_ptr<TaskReactor> reactor = task->reactor.lock();
 	if (!reactor) {
 		return;
@@ -43,7 +43,7 @@ TaskReactor::TaskReactor(TaskQueue &tasks)
 	read_next();
 }
 
-void TaskReactor::done(unique_ptr<Task> &&task) {
+void TaskReactor::done(unique_ptr<Task> task) {
 	std::lock_guard<std::mutex> lock(mut);
 	write_queue.push(std::move(task));
 	write_next();

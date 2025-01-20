@@ -28,7 +28,7 @@ public:
 
 	VariantCase variant_case() const { return request.task().variant_case(); }
 
-	static void done(unique_ptr<Task> &&task);
+	static void done(unique_ptr<Task> task);
 };
 
 class ActiveTaskBase {
@@ -60,7 +60,7 @@ protected:
 			, request(request)
 			, response(response) {
 		// Not a perfect check, but can detect some mistakes.
-		assert(task->request.task().variant_case() == task->response().variant_case());
+		assert(task->request.task().variant_case() == task->response.variant_case());
 	}
 };
 
@@ -88,7 +88,7 @@ public:
 
 	const shared_ptr<TaskReactor> &shared() const { return shared_this; }
 
-	void done(unique_ptr<Task> &&task);
+	void done(unique_ptr<Task> task);
 
 	void OnReadDone(bool ok) override;
 	void OnWriteDone(bool ok) override;

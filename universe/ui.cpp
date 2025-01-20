@@ -73,6 +73,8 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	shaders.compile_all();
 	auto &p = shaders.basic_program;
 
+	skybox = Skybox::init(shaders);
+
 	glClearColor(0.9f, 0.9f, 0.7f, 0.0f);
 
 	gl_error_guard(glCreateVertexArrays(1, &vertex_array));
@@ -99,7 +101,6 @@ void UI::event_loop(const RpcServer *rpc_server) {
 	glUseProgram(s.program_id);
 	glm::mat4 m = glm::identity<glm::mat4>();
 	m = glm::translate(m, {0, 0, -10});
-	std::cout << glm::to_string(m) << std::endl;
 	s.ambient_color = {0.2, 0.2, 0.2};
 	s.light0_color = {0.9, 0.9, 0.3};
 	s.light0_position = light0_offset;
@@ -206,9 +207,11 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 		glUseProgram(s.program_id);
 		glBindVertexArray(cube_vertex_array);
-		glm::mat4 tr = glm::translate(glm::identity<glm::mat4>(), {0, -5, -20});
-		tr = glm::rotate(tr, 0.2f * (float)glfwGetTime(), {0, 1, 0});
-		s.Projection = glm::perspective(glm::radians(90.0f), aspect, 0.1f, 100.0f) * tr;
+		glm::mat4 Projection = glm::perspective(glm::radians(60.0f), aspect, 0.1f, 100.0f);
+		glm::mat4 View = glm::lookAt(glm::vec3(0, 0, -3), {0, 0, 0}, {0, 1, 0});
+		View = glm::rotate(View, 0.05f * (float)glfwGetTime(), {0, 1, 0});
+		glm::mat4 ProjectionView = Projection * View;
+		s.Projection = ProjectionView;
 		s.light0_position = cubes.back().position + light0_offset;
 		s.light1_position = cubes.back().position + light1_offset;
 		for (auto &cube : cubes) {
@@ -225,6 +228,8 @@ void UI::event_loop(const RpcServer *rpc_server) {
 
 			glDrawArrays(GL_TRIANGLES, 0, cube_vertices.vertex_count());
 		}
+
+		skybox->draw_preview(ProjectionView);
 
 		process_tasks();
 

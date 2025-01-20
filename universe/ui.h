@@ -11,6 +11,7 @@ class RpcServer;
 class GLFWwindow;
 class TaskQueue;
 class SkyboxTask;
+class Skybox;
 
 struct SolidVertex {
 	glm::vec3 position;
@@ -35,6 +36,7 @@ class UI {
 	GLuint default_frmaebuffer = 0;
 	GLuint skybox_framebuffer = 0;
 	Shaders shaders;
+	unique_ptr<Skybox> skybox;
 	GLuint vertex_array;
 	GLuint cube_vertex_array;
 	gl::VertexBuffer<SolidVertex> cube_vertices;
